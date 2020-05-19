@@ -59,13 +59,4 @@ class TestAttack(TestCase):
                     flattened = PMF.flatten([pmf_1 * (i/100), pmf_2 * ((100-i)/100)])
                     self.assertRoundEqual(sum(flattened.values), 1)
 
-    def test_re_roll_ones(self):
-        """
-        test that re-rolling ones on a dn increases the mean value by 1 + 1/n times
-        """
-        for i in range(3,100):
-            pmf = PMF.dn(i)
-            rr_pmf = pmf.re_roll_value(1)
-            self.assertRoundEqual(rr_pmf.convert_binomial(4).mean()/pmf.convert_binomial(2).mean(), (1+i)/i)
-
 

@@ -15,4 +15,5 @@ setup(
     ],
     test_suite='nose.collector',
     tests_require=['nose'],
+    python_requires='>=3.6',
 )
