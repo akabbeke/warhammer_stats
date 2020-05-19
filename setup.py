@@ -1,11 +1,18 @@
 import setuptools
 
+from pipenv.project import Project
+from pipenv.utils import convert_deps_to_pip
+
+pfile = Project(chdir=False).parsed_pipfile
+requirements = convert_deps_to_pip(pfile['packages'], r=False)
+test_requirements = convert_deps_to_pip(pfile['dev-packages'], r=False)
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name='warhammer_stats-akabbeke',
-    version="0.0.2",
+    name='warhammer_stats',
+    version="0.0.3",
     author="Adam Kabbeke",
     author_email='akabbeke@gmail.com',
     description="Warhammer 40k stats tools",
@@ -18,8 +25,7 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    install_requires=[
-        'numpy',
-    ],
+    requirements=requirements,
+    test_requirements=test_requirements,
     python_requires='>=3.6',
 )
