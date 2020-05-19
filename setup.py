@@ -13,4 +13,6 @@ setup(
     install_requires=[
         'numpy',
     ],
+    test_suite='nose.collector',
+    tests_require=['nose'],
 )
