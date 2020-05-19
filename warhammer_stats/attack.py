@@ -14,10 +14,6 @@ class AttackSequenceResults(object):
         self.drone_wound = drone_wound
         self.self_wound = self_wound
         self.mortal_dist = mortal_dist
-        self.damage_with_mortals = PMF.convolve_many([
-            self.damage_dist,
-            self.mortal_dist,
-        ])
 
 
 class Attack(object):

@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='warhammer_stats-akabbeke',
-    version="0.0.1",
+    version="0.0.2",
     author="Adam Kabbeke",
     author_email='akabbeke@gmail.com',
     description="Warhammer 40k stats tools",
