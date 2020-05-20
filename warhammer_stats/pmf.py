@@ -145,6 +145,10 @@ class PMF(object):
         Convolve a list of 1d float arrays together, using FFTs.
         The arrays need not have the same length, but each array should
         have length at least 1.
+
+        This works becuse the convolution in the frequency space is a single
+        element-wise multiplication. FFT gets us into the frequency space faster
+        than the full FT
         """
 
         result_length = 1 + sum((len(dist) - 1) for dist in dists)

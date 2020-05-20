@@ -12,7 +12,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='warhammer_stats',
-    version="0.0.3",
+    version="0.0.4",
     author="Adam Kabbeke",
     author_email='akabbeke@gmail.com',
     description="Warhammer 40k stats tools",
