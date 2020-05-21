@@ -1,167 +1,338 @@
+"""
+Classes related to simulating an attack in Warhammer 40000 8th edition
+"""
+
+from __future__ import annotations
+
 from .pmf import PMF, PMFCollection
+from .weapon import Weapon
+from .target import Target
+from .modifiers import ModifierCollection
 
 
-class AttackSequenceResults(object):
+
+# pylint: disable=R0201,C0302,R0913,R0902,R0903,R0904,R0913
+
+class AttackResults:
+    """Holds the results of an attack sequence.
+
+    Args:
+        shot_volume_results (PMF): The results from determining the shot volume
+        to_hit_results (PMF): The results from the to-hit phase
+        to_wound_results (PMF): The results from the to-wound phase
+        saviour_protocol_results (PMF): The results from applying saviour protocols
+        armour_save_results (PMF): The results from the saving throws phase
+        damage_results (PMF): The results from appling wounds phase
+
     """
-    Holds the results of an attack sequence
+    def __init__(self, shot_volume_results: ShotVolumePhaseResults,
+                 to_hit_results: ToHitPhaseResults,
+                 to_wound_results: ToWoundPhaseResults,
+                 saviour_protocol_results: SaviourProtocolPhaseResults,
+                 armour_save_results: ArmourSavePhaseResults,
+                 damage_results: DamagePhaseResults):
+
+        self.shot_volume_results = shot_volume_results
+        self.to_hit_results = to_hit_results
+        self.to_wound_results = to_wound_results
+        self.saviour_protocol_results = saviour_protocol_results
+        self.armour_save_results = armour_save_results
+        self.damage_results = damage_results
+
+    @property
+    def damage_dist(self) -> PMF:
+        """
+        The final damage distribution
+        """
+        return self.damage_results.damage_dist
+
+    @property
+    def mortal_wound_dist(self) -> PMF:
+        """
+        The combined damage distribution from the hit and wound phase
+        """
+        return PMF.convolve_many([
+            self.to_hit_results.mortal_wound_dist,
+            self.to_wound_results.mortal_wound_dist,
+        ])
+
+    @property
+    def total_wounds_dist(self) -> PMF:
+        """
+        The combined damage distribution from regular and mortal wounds
+        """
+        return PMF.convolve_many([
+            self.mortal_wound_dist,
+            self.damage_dist,
+        ])
+
+class ShotVolumePhaseResults:
+    """Holds the results of determining the number of attacks.
+
+    Args:
+        shot_dist (PMF): The distribution of shots to be made
     """
-    def __init__(self, shot_dist, hit_dist, wound_dist, pen_dist, damage_dist, drone_wound, self_wound, mortal_dist):
-        self.shot_dist = shot_dist
+    def __init__(self, shots_dist: PMF):
+        self.shots_dist = shots_dist
+
+
+class ToHitPhaseResults:
+    """Holds the results from the to hit phase of the attack
+
+    Args:
+        hit_dist (PMF): The distribution of successful hits
+        exploding_dice_dists (PMF): The distribution of successful hits generated from
+            exploding dice
+        mortal_wound_dist (PMF): The distribution of mortal wounds generated
+        self_inflicted_dist (PMF): The distribution of wounds inflicted on the attacker
+    """
+    def __init__(self, hit_dist: PMF, exploding_dice_dist: PMF, mortal_wound_dist: PMF,
+                 self_inflicted_dist: PMF):
         self.hit_dist = hit_dist
+        self.exploding_dice_dist = exploding_dice_dist
+        self.mortal_wound_dist = mortal_wound_dist
+        self.self_inflicted_dist = self_inflicted_dist
+
+    @property
+    def combined_hit_dists(self) -> PMF:
+        """
+        The combined damage distribution from the hit and exploding wounds
+        """
+        return PMF.convolve_many([self.hit_dist, self.exploding_dice_dist])
+
+    @classmethod
+    def empty(cls) -> ToHitPhaseResults:
+        """
+        Return an empty set of results
+        """
+        return ToHitPhaseResults(
+            hit_dist=PMF.static(0),
+            exploding_dice_dist=PMF.static(0),
+            mortal_wound_dist=PMF.static(0),
+            self_inflicted_dist=PMF.static(0),
+        )
+
+
+class ToWoundPhaseResults:
+    """Holds the results from the to wound phase of the attack
+
+    Args:
+        wounds_dist (PMF): The distribution of successful wounds
+        mortal_wound_dist (PMF): The distribution of mortal wounds generated
+    """
+    def __init__(self, wound_dist: PMF, exploding_dice_dist: PMF, mortal_wound_dist: PMF):
         self.wound_dist = wound_dist
-        self.pen_dist = pen_dist
+        self.exploding_dice_dist = exploding_dice_dist
+        self.mortal_wound_dist = mortal_wound_dist
+
+
+class SaviourProtocolPhaseResults:
+    """Holds the results from saviour protocols
+
+    Args:
+        wounds_dist (PMF): The distribution of successful wounds
+        mortal_wound_dist (PMF): The distribution of mortal wounds generated
+    """
+    def __init__(self, failed_save_dist: PMF, drone_wound_dist: PMF):
+        self.failed_save_dist = failed_save_dist
+        self.drone_wound_dist = drone_wound_dist
+
+
+class ArmourSavePhaseResults:
+    """Holds the results from the armour save phase
+
+    Args:
+        wounds_dist (PMF): The distribution of successful wounds
+        mortal_wound_dist (PMF): The distribution of mortal wounds generated
+    """
+    def __init__(self, failed_save_dist: PMF):
+        self.failed_save_dist = failed_save_dist
+
+
+class DamagePhaseResults:
+    """Holds the results from the armour save phase
+
+    Args:
+        wounds_dist (PMF): The distribution of successful wounds
+        mortal_wound_dist (PMF): The distribution of mortal wounds generated
+    """
+    def __init__(self, damage_dist: PMF):
         self.damage_dist = damage_dist
-        self.drone_wound = drone_wound
-        self.self_wound = self_wound
-        self.mortal_dist = mortal_dist
 
 
-class Attack(object):
+class Attack:
+    """Generates the probability distribution for damage dealt from an attack sequence
+
+    Note:
+        This can be pretty computaionally expensive to run. Don't go crazy with the number
+        attacks and expect it to run quickly.
+
+    Args:
+        weapon (Weapon): The weapon being used to make the attack
+        target (Target): The target of the the attack
+
+    Attributes:
+        msg (str): Human readable string describing the exception.
+        code (int): Exception error code.
     """
-    Generates the probability distribution for damage dealt from an attack sequence
-    """
-    def __init__(self, weapon, target):
+    def __init__(self, weapon: Weapon, target: Target):
         self.weapon = weapon
         self.target = target
 
         # Setup the controllers for the individual phases
-        self.shots = AttackShots(self)
-        self.hits = AttackHits(self)
-        self.wounds = AttackWounds(self)
-        self.drones = AttackDrones(self)
-        self.pens = AttackPens(self)
-        self.damage = AttackDamage(self)
+        self._shots = ShotVolumePhase(self)
+        self._hits = ToHitPhase(self)
+        self._wounds = ToWoundPhase(self)
+        self._drones = SaviourProtocolPhase(self)
+        self._pens = ArmourSavePhase(self)
+        self._damage = DamagePhase(self)
 
     @property
-    def modifiers(self):
-        # Return a combined list of modifers for both the weapon ans the target
+    def modifiers(self) -> ModifierCollection:
+        """Return a combined list of modifers for both the weapon and the target"""
         return self.weapon.modifiers + self.target.modifiers
 
-    def run(self):
+    def run(self) -> AttackResults:
         """
         Generate the resulting PMF
         """
-        # Keeping track of mortal wounds generated in the hit and wound phase
-        mortal_dists = []
+
 
         # Generate the PMF for the number of shots
-        shot_dist = self.shots.calc_dist()
+        shot_volume_results = ShotVolumePhase(self).calc_dist()
 
         # Generate the PMFs for the number of hits, mortal wounds, and self inflicted
         # mortal wounds in the hit phase
-        hit_dist, mortal_dist, self_dist = self.hits.calc_dist(shot_dist)
-        mortal_dists.append(mortal_dist)
+        to_hit_results = ToHitPhase(self).calc_dist(
+            dist=shot_volume_results.shots_dist,
+            can_recurse=True,
+        )
 
         # Generate the PMFs for the number of wounds, mortal wounds, and self inflicted
         # mortal wounds in the wound phase
-        wound_dist, mortal_dist = self.wounds.calc_dist(hit_dist)
-        mortal_dists.append(mortal_dist)
+        to_wound_results = ToWoundPhase(self).calc_dist(dist=to_hit_results.combined_hit_dists)
 
         # Generate the PMFs for the number of wounds that penetrate saviour protocols and
         # how many drones die
-        drone_pen, drone_wound = self.drones.calc_dist(wound_dist)
+        saviour_protocol_results = SaviourProtocolPhase(self).calc_dist(
+            to_wound_results.wound_dist,
+        )
 
         # Generate the PMFs for the number of failed saves in the armor save phase
-        pen_dist = self.pens.calc_dist(drone_pen)
+        armour_save_results = ArmourSavePhase(self).calc_dist(
+            saviour_protocol_results.failed_save_dist,
+        )
 
         # Generate the PMFs for the danage dealt in the damage calculation phase.
-        damage_dist = self.damage.calc_dist(pen_dist)
+        damage_results = DamagePhase(self).calc_dist(
+            armour_save_results.failed_save_dist,
+        )
 
-        return AttackSequenceResults(
-            shot_dist,
-            hit_dist,
-            wound_dist,
-            pen_dist,
-            damage_dist,
-            drone_wound,
-            self_dist,
-            PMF.convolve_many(mortal_dists),
+        return AttackResults(
+            shot_volume_results=shot_volume_results,
+            to_hit_results=to_hit_results,
+            to_wound_results=to_wound_results,
+            saviour_protocol_results=saviour_protocol_results,
+            armour_save_results=armour_save_results,
+            damage_results=damage_results,
         )
 
 
-class AttackSegment(object):
+class AttackPhase:
+    """The base class for attack segments
+
+    Note:
+        This is just a base class that contains a number of common methods
+
+    Args:
+        attack (Attack): A reference to the attack being made
     """
-    The base class for the various attack segments
-    """
-    def __init__(self, attack):
+    def __init__(self, attack: Attack):
         self.attack = attack
         self._thresh_mod = None
 
-    def calc_dist(self):
-        # Stub
-        pass
-
     @property
-    def thresh_mod(self):
+    def thresh_mod(self) -> int:
+        """
+        A cached copy of the threshold modifier
+        """
         # cache the threshold modifier
         if self._thresh_mod is None:
             self._thresh_mod = self._get_thresh_mod()
         return self._thresh_mod
 
-    def _get_thresh_mod(self):
+    def _get_thresh_mod(self) -> int:
         return 0
 
-    def _calc_exp_dist(self, dice_dists):
+    def _calc_exp_dist(self, dice_dists: PMF) -> PMF:
         # Calculate the exploding dice distributions
         dist_col = PMFCollection.add_many([
-        self._mod_extra_dist().thresh_mod(self.thresh_mod),
-        self._extra_dist(),
+            self._mod_extra_dist().thresh_mod(self.thresh_mod),
+            self._extra_dist(),
         ])
 
         if dist_col:
             return dist_col.mul_col(dice_dists).convolve()
-        else:
-            return PMF.static(0)
+        return PMF.static(0)
 
-    def _mod_extra_dist(self):
+    def _mod_extra_dist(self) -> PMFCollection:
         # Stub
         return PMFCollection.empty()
 
-    def _extra_dist(self):
+    def _extra_dist(self) -> PMFCollection:
         # Stub
         return PMFCollection.empty()
 
-    def _calc_mortal_dist(self, dice_dists):
+    def _calc_mortal_dist(self, dice_dists) -> PMF:
         # Calculate how many mortal wounds are generated
         dist_col = PMFCollection.add_many([
-        self._mod_mortal_dist().thresh_mod(self.thresh_mod),
-        self._mortal_dist(),
+            self._mod_mortal_dist().thresh_mod(self.thresh_mod),
+            self._mortal_dist(),
         ])
         if dist_col:
             return dist_col.mul_col(dice_dists).convolve()
-        else:
-            return PMF.static(0)
+        return PMF.static(0)
 
-    def _mod_mortal_dist(self):
+    def _mod_mortal_dist(self) -> PMFCollection:
         # Stub
         return PMFCollection.empty()
 
-    def _mortal_dist(self):
+    def _mortal_dist(self) -> PMFCollection:
         # Stub
         return PMFCollection.empty()
 
 
-class AttackShots(AttackSegment):
+class ShotVolumePhase(AttackPhase):
     """
     Generate the PMF for the number of shots
     """
-    def calc_dist(self):
+    def calc_dist(self, *_) -> ShotVolumePhaseResults:
+        """Calculate the probability distiribution for the number of shots made in the attack
+        for weapons with a fixed value this is a static number but some can be the convolution
+        of more than one PMF. eg: 'roll two d6'
+        """
         # Apply the shot volume modifiers
         shots_dists = self.attack.modifiers.modify_shot_dice(self.attack.weapon.shots)
 
         # Convolve the resulting PMFs
-        return shots_dists.convolve()
+        return ShotVolumePhaseResults(
+            shots_dist=shots_dists.convolve()
+        )
 
 
-class AttackHits(AttackSegment):
+class ToHitPhase(AttackPhase):
     """
     Simulate the hits phase of the attack
     """
-    def calc_dist(self, dist, can_recurse=True):
+    def calc_dist(self, dist: PMF, can_recurse: bool, *_) -> ToHitPhaseResults: # pylint: disable=too-many-locals
+        """Calculate the probability distiribution of the number of sucessful hits in
+        in the attack phase. This takes into account modifiers and other effects as
+        extra hits and shots.
+        """
         hit_dists = []
-        exp_dists = []
-        mrt_dists = []
-        self_dists = []
+        exploding_dice_dists = []
+        mortal_wound_dists = []
+        self_inflicted_dists = []
 
         # The bare threshold to hit is the weapons to hit value
         thresh = self.attack.weapon.bs
@@ -170,7 +341,7 @@ class AttackHits(AttackSegment):
         mod_thresh = self.attack.modifiers.modify_hit_thresh(self.attack.weapon.bs)
 
         # Check for the threshhold for self inflicted wounds
-        thresh_self_wounds = self.attack.modifiers.modify_self_wounds()
+        thresh_self_wounds = self.attack.modifiers.self_wound_thresh()
 
         # Generate the resulting hit distributon for each value of the shots PMF then
         # multipy by the probability of that value and sum them
@@ -188,9 +359,9 @@ class AttackHits(AttackSegment):
             # If self inflicted wounds are possible calculate them
             if thresh_self_wounds:
                 self_thresh = max(thresh_self_wounds+mod_thresh-thresh, 0)
-                self_dist = dice_dists.convert_binomial_less_than(self_thresh).convolve()
+                self_inflicted_dist = dice_dists.convert_binomial_less_than(self_thresh).convolve()
             else:
-                self_dist = PMF.static(0)
+                self_inflicted_dist = PMF.static(0)
 
 
             # Convert the dice dist into a binomial distribution with the modified to hit value.
@@ -201,9 +372,9 @@ class AttackHits(AttackSegment):
             # generate more hits return a zero prob if we are recusing
             exp_dist = self._calc_exp_dist(dice_dists) if can_recurse else PMF.static(0)
 
-            # Calculate the ditributons for exploding extra chances to hit. This requires us to calcuate
-            # The whole to-hit phase again for the sub hits
-            exp_shot_dist, exp_mrt_dist, exp_self_dist = self._calc_exp_shot_dist(dice_dists, can_recurse)
+            # Calculate the ditributons for exploding extra chances to hit. This requires us
+            # to calcuate. The whole to-hit phase again for the sub hits
+            explosive_shot_result = self._calc_exp_shot_dist(dice_dists, can_recurse)
 
             # Calculate the mortal wounds gnerated
             mrt_dist = self._calc_mortal_dist(dice_dists)
@@ -211,34 +382,41 @@ class AttackHits(AttackSegment):
             # Multiply the resulting hit distributions by the probability of this number of dice
             # and append them to the totals
             hit_dists.append(hit_dist * event_prob)
-            exp_dists.append(PMF.convolve_many([exp_dist, exp_shot_dist]) * event_prob)
-            mrt_dists.append(PMF.convolve_many([mrt_dist, exp_mrt_dist]) * event_prob)
-            self_dists.append(PMF.convolve_many([self_dist, exp_self_dist]) * event_prob)
+            combined_exploding_dice = PMF.convolve_many([exp_dist, explosive_shot_result.hit_dist])
+            combined_mortal_wounds = PMF.convolve_many(
+                [mrt_dist, explosive_shot_result.mortal_wound_dist],
+            )
+            combined_self_inflicted = PMF.convolve_many(
+                [self_inflicted_dist, explosive_shot_result.self_inflicted_dist],
+            )
+
+            # Add these to the list
+            exploding_dice_dists.append(combined_exploding_dice * event_prob)
+            mortal_wound_dists.append(combined_mortal_wounds * event_prob)
+            self_inflicted_dists.append(combined_self_inflicted * event_prob)
 
         # Flattening the dists means we are summing the probabilites of each value across all the
         # dists. This is how we find the total probability distribution of the phase.
 
-        # Since the exploding hits happens as a kind of sidecar opperation to the main dice rolls
-        # it can be considered an "AND" opperation meaning we can convolve the two distributions
-        # together
-        combined_hit_dists = PMF.convolve_many([PMF.flatten(hit_dists), PMF.flatten(exp_dists)])
-        return (
-            combined_hit_dists,
-            PMF.flatten(mrt_dists),
-            PMF.static(0) if not self_dists else PMF.flatten(self_dists),
+        return ToHitPhaseResults(
+            hit_dist=PMF.flatten(hit_dists),
+            exploding_dice_dist=PMF.flatten(exploding_dice_dists),
+            mortal_wound_dist=PMF.flatten(mortal_wound_dists),
+            self_inflicted_dist=PMF.static(0) if not self_inflicted_dists else \
+                PMF.flatten(self_inflicted_dists)
         )
 
     def _get_thresh_mod(self):
         # This is a bit of a hack to get the delta between the threshold and the modified threshold
         return self.attack.modifiers.modify_hit_thresh(6) - 6
 
-    def _calc_exp_shot_dist(self, dice_dists, can_recurse=True):
+    def _calc_exp_shot_dist(self, dice_dists: PMF, can_recurse: bool) -> ToHitPhaseResults:
         # This handles generating extra chances to hit and then calculating the distribution of
         # resulting successful hits
 
         # If we are alread recusing then return zeros
         if not can_recurse:
-            return PMF.static(0), PMF.static(0), PMF.static(0)
+            return ToHitPhaseResults.empty()
 
         # Since to hit modifers can modify the number of extra chances to hit generate that now
         dist_col = PMFCollection.add_many([
@@ -248,8 +426,7 @@ class AttackHits(AttackSegment):
 
         if dist_col:
             return self.calc_dist(dist_col.mul_col(dice_dists).convolve(), can_recurse=False)
-        else:
-            return PMF.static(0), PMF.static(0), PMF.static(0)
+        return ToHitPhaseResults.empty()
 
     def _mod_extra_dist(self):
         return self.attack.modifiers.get_mod_extra_hit()
@@ -270,14 +447,18 @@ class AttackHits(AttackSegment):
         return self.attack.modifiers.hit_mortal_wounds()
 
 
-class AttackWounds(AttackSegment):
+class ToWoundPhase(AttackPhase):
     """
     Generate the PMF for the wounds
     """
-    def calc_dist(self, dist):
+    def calc_dist(self, dist: PMF, *_) -> ToWoundPhaseResults:
+        """Calculate the probability distiribution of the number of sucessful wounds in
+        in the wound phase. This takes into account modifiers and other effects as
+        extra automatic wounds.
+        """
         wnd_dists = []
-        exp_dists = []
-        mrt_dists = []
+        exploding_dice_dists = []
+        mortal_wound_dist = []
 
         # Calculate the wound threshold from the strength of the weapon and the toughness
         # of the target
@@ -303,7 +484,8 @@ class AttackWounds(AttackSegment):
             dice_dists = self.attack.modifiers.modify_wound_dice(dice_dists, thresh, mod_thresh)
 
             # Convert the dice dist into a binomial distribution with the modified to wound value.
-            # We are bsically flatteing all the individual d6 down into d2 True/False for if it wounded.
+            # We are bsically flatteing all the individual d6 down into d2 True/False for if it
+            # wounded.
             wnd_dist = dice_dists.convert_binomial(mod_thresh).convolve()
 
             # Calculate exploding auto-wounds
@@ -313,15 +495,19 @@ class AttackWounds(AttackSegment):
             mrt_dist = self._calc_mortal_dist(dice_dists)
 
             wnd_dists.append(wnd_dist * event_prob)
-            exp_dists.append(exp_dist * event_prob)
-            mrt_dists.append(mrt_dist * event_prob)
+            exploding_dice_dists.append(exp_dist * event_prob)
+            mortal_wound_dist.append(mrt_dist * event_prob)
 
         # Flatten the distros down
-        return PMF.convolve_many([PMF.flatten(wnd_dists), PMF.flatten(exp_dists)]), PMF.flatten(mrt_dists)
+        return ToWoundPhaseResults(
+            wound_dist=PMF.flatten(wnd_dists),
+            exploding_dice_dist=PMF.flatten(exploding_dice_dists),
+            mortal_wound_dist=PMF.flatten(mortal_wound_dist),
+        )
 
-    def _calc_wound_thresh(self, strength, toughness):
+    def _calc_wound_thresh(self, strength: int, toughness: int) -> int:
         # Generate the wound threshold
-        if strength <= toughness/2.0:
+        if strength <= toughness/2.0: # pylint: disable=no-else-return
             # If the toughness is greater than twice the strength wound on a 6+
             return 6
         elif strength >= toughness*2:
@@ -337,35 +523,43 @@ class AttackWounds(AttackSegment):
             # If the strength is greater than toughness wound on a 3+
             return 3
 
-    def _get_thresh_mod(self):
+    def _get_thresh_mod(self) -> int:
         return self.attack.modifiers.modify_wound_thresh(6) - 6
 
-    def _mod_extra_dist(self):
+    def _mod_extra_dist(self) -> PMFCollection:
         return self.attack.modifiers.get_mod_extra_wound()
 
-    def _extra_dist(self):
+    def _extra_dist(self) -> PMFCollection:
         return self.attack.modifiers.get_extra_wound()
 
-    def _mod_mortal_dist(self):
+    def _mod_mortal_dist(self) -> PMFCollection:
         return self.attack.modifiers.wound_mod_mortal_wounds()
 
-    def _mortal_dist(self):
+    def _mortal_dist(self) -> PMFCollection:
         return self.attack.modifiers.wound_mortal_wounds()
 
 
-class AttackDrones(AttackSegment):
+class SaviourProtocolPhase(AttackPhase):
     """
     Generate the PMF for saviour protocols
     """
-    def calc_dist(self, dist):
+    def calc_dist(self, dist: PMF) -> SaviourProtocolPhaseResults:
+        """Calculate the probability distiribution of the number of failed saves from
+        saviour protocol and the amount of damage dealt to drones. This takes into account \
+        modifiers such as the shield drone FNP and other effects.
+        """
         # Check if saviour protcols are active and if so what the threshold is and the FNP value
         drone_enabled, drone_thresh, drone_fnp = self.attack.modifiers.modify_drone()
 
         # If the probability is zero then no-op
         if not drone_enabled:
-            return dist, PMF.static(0)
+            return SaviourProtocolPhaseResults(
+                failed_save_dist=dist,
+                drone_wound_dist=PMF.static(0),
+            )
 
-        # Calculate how many wounds pass though the savious protocols and how many wounds the drones take
+        # Calculate how many wounds pass though the savious protocols and how many wounds the
+        # drones take
         pens = []
         saves = []
         for dice_count, event_prob in enumerate(dist.values):
@@ -387,9 +581,12 @@ class AttackDrones(AttackSegment):
             saves.append(save_dist * event_prob)
 
         # Flatten the distros down
-        return PMF.flatten(pens), self._calc_fnp_dist(PMF.flatten(saves), drone_fnp)
+        return SaviourProtocolPhaseResults(
+            failed_save_dist=PMF.flatten(pens),
+            drone_wound_dist=self._calc_fnp_dist(PMF.flatten(saves), drone_fnp),
+        )
 
-    def _calc_fnp_dist(self, dist, drone_fnp):
+    def _calc_fnp_dist(self, dist, drone_fnp) -> PMF:
         # Check how many of the wounds are removed by the drone FNP
         dists = []
         for dice, event_prob in enumerate(dist.values):
@@ -401,11 +598,14 @@ class AttackDrones(AttackSegment):
         return PMF.flatten(dists)
 
 
-class AttackPens(AttackSegment):
+class ArmourSavePhase(AttackPhase):
     """
     Generate the PMF for the wounds that penetrate the
     """
-    def calc_dist(self, dist):
+    def calc_dist(self, dist: PMF) -> ArmourSavePhaseResults:
+        """Calculate the probability distiribution of the number of failed armour
+        saves. This takes into account modifiers and invunerable save
+        """
         # Calculate the final save threshold from the save value, invunerable save, and
         # any save modifiers
         mod_thresh = self.attack.modifiers.modify_pen_thresh(
@@ -429,14 +629,23 @@ class AttackPens(AttackSegment):
             dists.append(pen_dists * event_prob)
 
         # Flatten the distros down
-        return PMF.flatten(dists)
+        return ArmourSavePhaseResults(
+            failed_save_dist=PMF.flatten(dists)
+        )
 
 
-class AttackDamage(AttackSegment):
+class DamagePhase(AttackPhase):
     """
     Generate the PMF for the damage dealt to the target
     """
-    def calc_dist(self, dist):
+    def calc_dist(self, dist: PMF) -> DamagePhaseResults:
+        """Calculate the probability distiribution of the number of wounds dealt from a
+        failed daving throw. This accounts for feel no pain, target wounds characteristic
+        and other damage modifiers.
+
+        Note: This does not take into account the inneficientcy from partially wounding
+        units
+        """
         # Get the distribution of each individual wound dealt
         individual_dist = self._calc_individual_damage_dist()
 
@@ -447,9 +656,12 @@ class AttackDamage(AttackSegment):
                 continue
             # Multiply the individual damage distributions by the number dice
             damge_dists.append(PMF.convolve_many([individual_dist] * dice) * event_prob)
-        return PMF.flatten(damge_dists)
 
-    def _calc_individual_damage_dist(self):
+        return DamagePhaseResults(
+            damage_dist=PMF.flatten(damge_dists)
+        )
+
+    def _calc_individual_damage_dist(self) -> PMF:
         # Get the basic damage distribution
         dice_dists = self.attack.weapon.damage
 
@@ -462,7 +674,7 @@ class AttackDamage(AttackSegment):
         # Clip the damage dist to the wounds characteristic of the target
         return fnp_dist.ceiling(self.attack.target.wounds)
 
-    def _calc_fnp_dist(self, dist):
+    def _calc_fnp_dist(self, dist: PMF) -> PMF:
         dists = []
         mod_thresh = self.attack.modifiers.modify_fnp_thresh(self.attack.target.fnp)
         for dice, event_prob in enumerate(dist.values):
@@ -476,5 +688,3 @@ class AttackDamage(AttackSegment):
             binom_dists = dice_dists.convert_binomial_less_than(mod_thresh).convolve()
             dists.append(binom_dists * event_prob)
         return PMF.flatten(dists)
-
-

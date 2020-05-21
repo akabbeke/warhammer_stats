@@ -7,10 +7,10 @@ verify_ssl = true
 nose = "*"
 twine = "*"
 pipenv = "*"
+pylint = "*"
 
 [packages]
 numpy = "*"
-
 
 [requires]
 python_version = "3.7"

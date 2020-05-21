@@ -25,7 +25,7 @@ class TestAttack(TestCase):
         weapon.modifiers = weapon_mods
 
         # Attack with no modifier
-        with_modifier = Attack(weapon, target).run().damage_dist.mean()
+        with_modifier = Attack(weapon, target).run().total_wounds_dist.mean()
 
         # Should be ~1.4583 = 1.25 *(7/6) times higher now
         self.assertEqual(round(with_modifier, 10), round(no_modifier * (7/6), 10) )
