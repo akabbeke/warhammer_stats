@@ -179,13 +179,23 @@ class Attack:
         self.weapon = weapon
         self.target = target
 
-        # Setup the controllers for the individual phases
-        self._shots = ShotVolumePhase(self)
-        self._hits = ToHitPhase(self)
-        self._wounds = ToWoundPhase(self)
-        self._drones = SaviourProtocolPhase(self)
-        self._pens = ArmourSavePhase(self)
-        self._damage = DamagePhase(self)
+    def _shot_volume_phase(self):
+        return ShotVolumePhase(self.weapon, self.target, self.modifiers)
+
+    def _to_hit_phase(self):
+        return ToHitPhase(self.weapon, self.target, self.modifiers)
+
+    def _to_wound_phase(self):
+        return ToWoundPhase(self.weapon, self.target, self.modifiers)
+
+    def _saviour_protocol_phase(self):
+        return SaviourProtocolPhase(self.weapon, self.target, self.modifiers)
+
+    def _armour_save_phase(self):
+        return ArmourSavePhase(self.weapon, self.target, self.modifiers)
+
+    def _damage_phase_phase(self):
+        return DamagePhase(self.weapon, self.target, self.modifiers)
 
     @property
     def modifiers(self) -> ModifierCollection:
@@ -199,32 +209,32 @@ class Attack:
 
 
         # Generate the PMF for the number of shots
-        shot_volume_results = ShotVolumePhase(self).calc_dist()
+        shot_volume_results = self._shot_volume_phase().calc_dist()
 
         # Generate the PMFs for the number of hits, mortal wounds, and self inflicted
         # mortal wounds in the hit phase
-        to_hit_results = ToHitPhase(self).calc_dist(
+        to_hit_results = self._to_hit_phase().calc_dist(
             dist=shot_volume_results.shots_dist,
             can_recurse=True,
         )
 
         # Generate the PMFs for the number of wounds, mortal wounds, and self inflicted
         # mortal wounds in the wound phase
-        to_wound_results = ToWoundPhase(self).calc_dist(dist=to_hit_results.combined_hit_dists)
+        to_wound_results = self._to_wound_phase().calc_dist(dist=to_hit_results.combined_hit_dists)
 
         # Generate the PMFs for the number of wounds that penetrate saviour protocols and
         # how many drones die
-        saviour_protocol_results = SaviourProtocolPhase(self).calc_dist(
+        saviour_protocol_results = self._saviour_protocol_phase().calc_dist(
             to_wound_results.wound_dist,
         )
 
         # Generate the PMFs for the number of failed saves in the armor save phase
-        armour_save_results = ArmourSavePhase(self).calc_dist(
+        armour_save_results = self._armour_save_phase().calc_dist(
             saviour_protocol_results.failed_save_dist,
         )
 
         # Generate the PMFs for the danage dealt in the damage calculation phase.
-        damage_results = DamagePhase(self).calc_dist(
+        damage_results = self._damage_phase_phase().calc_dist(
             armour_save_results.failed_save_dist,
         )
 
@@ -247,8 +257,10 @@ class AttackPhase:
     Args:
         attack (Attack): A reference to the attack being made
     """
-    def __init__(self, attack: Attack):
-        self.attack = attack
+    def __init__(self, weapon: Weapon, target: Target, modifiers: ModifierCollection):
+        self.weapon = weapon
+        self.target = target
+        self.modifiers = modifiers
         self._thresh_mod = None
 
     @property
@@ -312,7 +324,7 @@ class ShotVolumePhase(AttackPhase):
         of more than one PMF. eg: 'roll two d6'
         """
         # Apply the shot volume modifiers
-        shots_dists = self.attack.modifiers.modify_shot_dice(self.attack.weapon.shots)
+        shots_dists = self.modifiers.modify_shot_dice(self.weapon.shots)
 
         # Convolve the resulting PMFs
         return ShotVolumePhaseResults(
@@ -335,13 +347,13 @@ class ToHitPhase(AttackPhase):
         self_inflicted_dists = []
 
         # The bare threshold to hit is the weapons to hit value
-        thresh = self.attack.weapon.bs
+        thresh = self.weapon.bs
 
         # Check for any modifers to the to hit roll
-        mod_thresh = self.attack.modifiers.modify_hit_thresh(self.attack.weapon.bs)
+        mod_thresh = self.modifiers.modify_hit_thresh(self.weapon.bs)
 
         # Check for the threshhold for self inflicted wounds
-        thresh_self_wounds = self.attack.modifiers.self_wound_thresh()
+        thresh_self_wounds = self.modifiers.self_wound_thresh()
 
         # Generate the resulting hit distributon for each value of the shots PMF then
         # multipy by the probability of that value and sum them
@@ -354,7 +366,7 @@ class ToHitPhase(AttackPhase):
             dice_dists = PMFCollection.mdn(dice_count, 6)
 
             # Apply modifiers to the dice distribution
-            dice_dists = self.attack.modifiers.modify_hit_dice(dice_dists, thresh, mod_thresh)
+            dice_dists = self.modifiers.modify_hit_dice(dice_dists, thresh, mod_thresh)
 
             # If self inflicted wounds are possible calculate them
             if thresh_self_wounds:
@@ -408,7 +420,7 @@ class ToHitPhase(AttackPhase):
 
     def _get_thresh_mod(self):
         # This is a bit of a hack to get the delta between the threshold and the modified threshold
-        return self.attack.modifiers.modify_hit_thresh(6) - 6
+        return self.modifiers.modify_hit_thresh(6) - 6
 
     def _calc_exp_shot_dist(self, dice_dists: PMF, can_recurse: bool) -> ToHitPhaseResults:
         # This handles generating extra chances to hit and then calculating the distribution of
@@ -429,22 +441,22 @@ class ToHitPhase(AttackPhase):
         return ToHitPhaseResults.empty()
 
     def _mod_extra_dist(self):
-        return self.attack.modifiers.get_mod_extra_hit()
+        return self.modifiers.get_mod_extra_hit()
 
     def _extra_dist(self):
-        return self.attack.modifiers.get_extra_hit()
+        return self.modifiers.get_extra_hit()
 
     def _get_mod_extra_shot(self):
-        return self.attack.modifiers.get_mod_extra_shot()
+        return self.modifiers.get_mod_extra_shot()
 
     def _get_extra_shot(self):
-        return self.attack.modifiers.get_extra_shot()
+        return self.modifiers.get_extra_shot()
 
     def _mod_mortal_dist(self):
-        return self.attack.modifiers.hit_mod_mortal_wounds()
+        return self.modifiers.hit_mod_mortal_wounds()
 
     def _mortal_dist(self):
-        return self.attack.modifiers.hit_mortal_wounds()
+        return self.modifiers.hit_mortal_wounds()
 
 
 class ToWoundPhase(AttackPhase):
@@ -463,12 +475,12 @@ class ToWoundPhase(AttackPhase):
         # Calculate the wound threshold from the strength of the weapon and the toughness
         # of the target
         thresh = self._calc_wound_thresh(
-            self.attack.weapon.strength,
-            self.attack.target.toughness
+            self.weapon.strength,
+            self.target.toughness
         )
 
         # Apply any modifers to the wound threshold
-        mod_thresh = self.attack.modifiers.modify_wound_thresh(thresh)
+        mod_thresh = self.modifiers.modify_wound_thresh(thresh)
 
         # Generate the resulting hit distributon for each value of the shots PMF then
         # multipy by the probability of that value and sum them
@@ -481,7 +493,7 @@ class ToWoundPhase(AttackPhase):
             dice_dists = PMFCollection.mdn(dice_count, 6)
 
             # Apply modifiers to the dice distribution
-            dice_dists = self.attack.modifiers.modify_wound_dice(dice_dists, thresh, mod_thresh)
+            dice_dists = self.modifiers.modify_wound_dice(dice_dists, thresh, mod_thresh)
 
             # Convert the dice dist into a binomial distribution with the modified to wound value.
             # We are bsically flatteing all the individual d6 down into d2 True/False for if it
@@ -524,19 +536,19 @@ class ToWoundPhase(AttackPhase):
             return 3
 
     def _get_thresh_mod(self) -> int:
-        return self.attack.modifiers.modify_wound_thresh(6) - 6
+        return self.modifiers.modify_wound_thresh(6) - 6
 
     def _mod_extra_dist(self) -> PMFCollection:
-        return self.attack.modifiers.get_mod_extra_wound()
+        return self.modifiers.get_mod_extra_wound()
 
     def _extra_dist(self) -> PMFCollection:
-        return self.attack.modifiers.get_extra_wound()
+        return self.modifiers.get_extra_wound()
 
     def _mod_mortal_dist(self) -> PMFCollection:
-        return self.attack.modifiers.wound_mod_mortal_wounds()
+        return self.modifiers.wound_mod_mortal_wounds()
 
     def _mortal_dist(self) -> PMFCollection:
-        return self.attack.modifiers.wound_mortal_wounds()
+        return self.modifiers.wound_mortal_wounds()
 
 
 class SaviourProtocolPhase(AttackPhase):
@@ -549,7 +561,7 @@ class SaviourProtocolPhase(AttackPhase):
         modifiers such as the shield drone FNP and other effects.
         """
         # Check if saviour protcols are active and if so what the threshold is and the FNP value
-        drone_enabled, drone_thresh, drone_fnp = self.attack.modifiers.modify_drone()
+        drone_enabled, drone_thresh, drone_fnp = self.modifiers.modify_drone()
 
         # If the probability is zero then no-op
         if not drone_enabled:
@@ -608,10 +620,10 @@ class ArmourSavePhase(AttackPhase):
         """
         # Calculate the final save threshold from the save value, invunerable save, and
         # any save modifiers
-        mod_thresh = self.attack.modifiers.modify_pen_thresh(
-            self.attack.target.save,
-            self.attack.weapon.ap,
-            self.attack.target.invuln
+        mod_thresh = self.modifiers.modify_pen_thresh(
+            self.target.save,
+            self.weapon.ap,
+            self.target.invuln
         )
 
         dists = []
@@ -622,7 +634,7 @@ class ArmourSavePhase(AttackPhase):
 
             # Create a dice distribution for 'dice_count' d6 dice
             dice_dists = PMFCollection.mdn(dice_count, 6)
-            dice_dists = self.attack.modifiers.modify_pen_dice(dice_dists, mod_thresh, mod_thresh)
+            dice_dists = self.modifiers.modify_pen_dice(dice_dists, mod_thresh, mod_thresh)
 
             # Convert binomial for values less than the threshold for attacks the penetrated
             pen_dists = dice_dists.convert_binomial_less_than(mod_thresh).convolve()
@@ -663,26 +675,26 @@ class DamagePhase(AttackPhase):
 
     def _calc_individual_damage_dist(self) -> PMF:
         # Get the basic damage distribution
-        dice_dists = self.attack.weapon.damage
+        dice_dists = self.weapon.damage
 
         # Apply modifers to the damage distribution
-        mod_dists = self.attack.modifiers.modify_damage_dice(dice_dists)
+        mod_dists = self.modifiers.modify_damage_dice(dice_dists)
 
         # Calculate the damge distribution after the feel no pain has been applied
         fnp_dist = self._calc_fnp_dist(mod_dists.convolve())
 
         # Clip the damage dist to the wounds characteristic of the target
-        return fnp_dist.ceiling(self.attack.target.wounds)
+        return fnp_dist.ceiling(self.target.wounds)
 
     def _calc_fnp_dist(self, dist: PMF) -> PMF:
         dists = []
-        mod_thresh = self.attack.modifiers.modify_fnp_thresh(self.attack.target.fnp)
+        mod_thresh = self.modifiers.modify_fnp_thresh(self.target.fnp)
         for dice, event_prob in enumerate(dist.values):
             if event_prob == 0:
                 continue
-            dice_dists = self.attack.modifiers.modify_fnp_dice(
+            dice_dists = self.modifiers.modify_fnp_dice(
                 PMFCollection.mdn(dice, 6),
-                self.attack.target.fnp,
+                self.target.fnp,
                 mod_thresh,
             )
             binom_dists = dice_dists.convert_binomial_less_than(mod_thresh).convolve()
