@@ -17,7 +17,7 @@ class PMF:
     events
     """
     def __init__(self, values: List[float]):
-        self.values = values
+        self.values = list(values)
 
     def __str__(self) -> str:
         return str(self.values)

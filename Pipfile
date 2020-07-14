@@ -11,6 +11,7 @@ pylint = "*"
 
 [packages]
 numpy = "*"
+mypy = "*"
 
 [requires]
 python_version = "3.7"

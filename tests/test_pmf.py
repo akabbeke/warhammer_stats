@@ -59,4 +59,12 @@ class TestAttack(TestCase):
                     flattened = PMF.flatten([pmf_1 * (i/100), pmf_2 * ((100-i)/100)])
                     self.assertRoundEqual(sum(flattened.values), 1)
 
+    def test_convolution_pmfs(self):
+        """
+        test that pmfs from convolution have list type values
+        """
+        self.assertTrue(
+            isinstance(PMF.convolve_many(self.pmf_examples).values, list)
+        )
+
 
