@@ -4,12 +4,14 @@ Classes related to simulating an attack in Warhammer 40000 8th edition
 
 from __future__ import annotations
 
-from .pmf import PMF, PMFCollection
-from .weapon import Weapon
-from .target import Target
+import math
+from functools import wraps
+from typing import List
+
 from .modifiers import ModifierCollection
-
-
+from .pmf import PMF, PMFCollection
+from .target import Target
+from .weapon import Weapon
 
 # pylint: disable=R0201,C0302,R0913,R0902,R0903,R0904,R0913
 
@@ -30,7 +32,8 @@ class AttackResults:
                  to_wound_results: ToWoundPhaseResults,
                  saviour_protocol_results: SaviourProtocolPhaseResults,
                  armour_save_results: ArmourSavePhaseResults,
-                 damage_results: DamagePhaseResults):
+                 damage_results: DamagePhaseResults,
+                 kill_results: KillPhaseResults):
 
         self.shot_volume_results = shot_volume_results
         self.to_hit_results = to_hit_results
@@ -38,6 +41,7 @@ class AttackResults:
         self.saviour_protocol_results = saviour_protocol_results
         self.armour_save_results = armour_save_results
         self.damage_results = damage_results
+        self.kill_results = kill_results
 
     @property
     def damage_dist(self) -> PMF:
@@ -45,6 +49,13 @@ class AttackResults:
         The final damage distribution
         """
         return self.damage_results.damage_dist
+
+    @property
+    def kill_dist(self) -> PMF:
+        """
+        The final damage distribution
+        """
+        return self.kill_results.kill_dist
 
     @property
     def mortal_wound_dist(self) -> PMF:
@@ -160,6 +171,17 @@ class DamagePhaseResults:
         self.damage_dist = damage_dist
 
 
+class KillPhaseResults:
+    """Holds the results from the kill phase
+
+    Args:
+        wounds_dist (PMF): The distribution of successful wounds
+        mortal_wound_dist (PMF): The distribution of mortal wounds generated
+    """
+    def __init__(self,  kill_dist: PMF):
+        self.kill_dist = kill_dist
+
+
 class Attack:
     """Generates the probability distribution for damage dealt from an attack sequence
 
@@ -175,9 +197,10 @@ class Attack:
         msg (str): Human readable string describing the exception.
         code (int): Exception error code.
     """
-    def __init__(self, weapon: Weapon, target: Target):
+    def __init__(self, weapon: Weapon, target: Target, kills_enabled: bool=False):
         self.weapon = weapon
         self.target = target
+        self._kills_enabled = kills_enabled
 
     def _shot_volume_phase(self):
         return ShotVolumePhase(self.weapon, self.target, self.modifiers)
@@ -196,6 +219,9 @@ class Attack:
 
     def _damage_phase_phase(self):
         return DamagePhase(self.weapon, self.target, self.modifiers)
+
+    def _kill_phase_phase(self):
+        return KillPhase(self.weapon, self.target, self.modifiers)
 
     @property
     def modifiers(self) -> ModifierCollection:
@@ -238,6 +264,14 @@ class Attack:
             armour_save_results.failed_save_dist,
         )
 
+        # Generate the PMFs for the kills dealt in the damage calculation phase.
+        if self._kills_enabled:
+            kill_results = self._kill_phase_phase().calc_dist(
+                armour_save_results.failed_save_dist,
+            )
+        else:
+            kill_results = None
+
         return AttackResults(
             shot_volume_results=shot_volume_results,
             to_hit_results=to_hit_results,
@@ -245,6 +279,7 @@ class Attack:
             saviour_protocol_results=saviour_protocol_results,
             armour_save_results=armour_save_results,
             damage_results=damage_results,
+            kill_results=kill_results,
         )
 
 
@@ -646,33 +681,10 @@ class ArmourSavePhase(AttackPhase):
         )
 
 
-class DamagePhase(AttackPhase):
+class DamagePhaseBase(AttackPhase):
     """
-    Generate the PMF for the damage dealt to the target
+    Base class for damage dealt
     """
-    def calc_dist(self, dist: PMF) -> DamagePhaseResults:
-        """Calculate the probability distiribution of the number of wounds dealt from a
-        failed daving throw. This accounts for feel no pain, target wounds characteristic
-        and other damage modifiers.
-
-        Note: This does not take into account the inneficientcy from partially wounding
-        units
-        """
-        # Get the distribution of each individual wound dealt
-        individual_dist = self._calc_individual_damage_dist()
-
-        damge_dists = []
-        for dice, event_prob in enumerate(dist.values):
-            # If the probability is zero then no-op
-            if event_prob == 0:
-                continue
-            # Multiply the individual damage distributions by the number dice
-            damge_dists.append(PMF.convolve_many([individual_dist] * dice) * event_prob)
-
-        return DamagePhaseResults(
-            damage_dist=PMF.flatten(damge_dists)
-        )
-
     def _calc_individual_damage_dist(self) -> PMF:
         # Get the basic damage distribution
         dice_dists = self.weapon.damage
@@ -700,3 +712,151 @@ class DamagePhase(AttackPhase):
             binom_dists = dice_dists.convert_binomial_less_than(mod_thresh).convolve()
             dists.append(binom_dists * event_prob)
         return PMF.flatten(dists)
+
+
+class DamagePhase(DamagePhaseBase):
+    """
+    Generate the PMF for the damage dealt to the target
+    """
+    def calc_dist(self, dist: PMF) -> DamagePhaseResults:
+        """Calculate the probability distiribution of the number of wounds dealt from a
+        failed daving throw. This accounts for feel no pain, target wounds characteristic
+        and other damage modifiers.
+
+        Note: This does not take into account the inneficientcy from partially wounding
+        units
+        """
+        # Get the distribution of each individual wound dealt
+        individual_dist = self._calc_individual_damage_dist()
+
+        damge_dists = []
+        for dice, event_prob in enumerate(dist.values):
+            # If the probability is zero then no-op
+            if event_prob == 0:
+                continue
+            # Multiply the individual damage distributions by the number dice
+            damge_dists.append(PMF.convolve_many([individual_dist] * dice) * event_prob)
+
+        return DamagePhaseResults(
+            damage_dist=PMF.flatten(damge_dists)
+        )
+
+
+def cache_function_tree(f):
+    @wraps(f)
+    def wrapper(self, *args, **kwds):
+        key_name = f.__name__ + str(args)
+        if key_name in self._cache:
+            return self._cache[key_name]
+        else:
+            results = f(self, *args, **kwds)
+            self._cache[key_name] = results
+            return results
+    return wrapper
+
+
+class KillPhase(DamagePhaseBase):
+    """
+    Generate the PMF for the kills dealt to the target
+    """
+
+    _cache = {}
+
+    def calc_dist(self, dist: PMF) -> KillPhaseResults:
+        """Calculate the probability distiribution of the number of kills from a
+        failed saving throw. This accounts for feel no pain, target wounds characteristic
+        and other damage modifiers.
+        """
+        # Get the distribution of each individual wound dealt
+        individual_dist = self._calc_individual_damage_dist()
+
+        damge_dists = []
+        for dice, event_prob in enumerate(dist.values):
+            # If the probability is zero then no-op
+            if event_prob == 0:
+                continue
+            # Multiply the individual damage distributions by the number dice
+            damge_dists.append(self.calculate_kills(dice, individual_dist) * event_prob)
+
+        return KillPhaseResults(
+            kill_dist=PMF.flatten(damge_dists)
+        )
+
+    @cache_function_tree
+    def generate_tree(self, wounds: int, depth: int, dam_pmf: PMF) -> List[List[int, int]]:
+        """Generate the tree for the probability of dice required to get a single kill
+        """
+        if wounds <= 0:
+            return [[0, 1]], []
+        elif depth==0:
+            return [], [[0, 1]]
+        else:
+            damages = []
+            zeros = []
+            actual_dam_pmf = dam_pmf.ceiling(wounds)
+            for dam, dam_prob in enumerate(actual_dam_pmf.values):
+                if dam_prob == 0:
+                    continue
+                tree_dam, tree_zeros = self.generate_tree(wounds - dam, depth - 1, dam_pmf)
+                damages += [[x[0] + 1, x[1] * dam_prob] for x in tree_dam]
+                zeros += [[x[0] + 1, x[1] * dam_prob] for x in tree_zeros]
+            return damages, zeros
+
+
+    def flatten_tree(self, tree: List[List[int, int]]) -> List[List[int, int]]:
+        """Flattens the tree results into a single list
+        """
+        tree_vals = {}
+        if not tree:
+            return []
+        for dam, dam_prob in tree:
+            if dam in tree_vals:
+                tree_vals[dam] += dam_prob
+            else:
+                tree_vals[dam] = dam_prob
+        values = [0.0] * (1 + max(tree_vals.keys()))
+        for k in tree_vals:
+            values[k] = tree_vals[k]
+        return values
+
+    def get_max_depth(self, wounds: int, dice: int, dam_pmf: PMF) -> int:
+        """Returns the maximum number of dice rolls"""
+        for i, val in enumerate(dam_pmf.values):
+            if val >= 0.00001:
+                if i == 0:
+                    return dice
+                return math.ceil(wounds/i)
+        else:
+            return 0
+
+    @cache_function_tree
+    def generate_kill_tree(self, wounds: int, dice: int, dam_pmf: PMF) -> List[List[int, int]]:
+        """Generates the tree composed of the one-kill trees"""
+        if dice==0:
+            return [[0, 1]]
+        else:
+            kills = []
+            max_depth = self.get_max_depth(wounds, dice, dam_pmf)
+            dice_dist, zeros_dist = self.generate_tree(wounds, min(dice, max_depth), dam_pmf)
+            damages = self.flatten_tree(dice_dist)
+            zeros = self.flatten_tree(zeros_dist)
+            for dice_used, dice_prob in enumerate(damages):
+                if dice_prob == 0:
+                    continue
+                else:
+                    tree_dam = self.generate_kill_tree(wounds, dice - dice_used, dam_pmf)
+                    kills += [[x[0] + 1, x[1] * dice_prob] for x in tree_dam]
+
+            for dice_used, dice_prob in enumerate(zeros):
+                if dice_prob == 0:
+                    continue
+                else:
+                    tree_dam = self.generate_kill_tree(wounds, dice - dice_used, dam_pmf)
+                    kills += [[x[0], x[1] * dice_prob] for x in tree_dam]
+            return kills
+
+    def calculate_kills(self, dice: int, dam_pmf: PMF) -> PMF:
+        wounds = self.target.wounds
+        kill_tree = self.generate_kill_tree(wounds, dice, dam_pmf)
+        return PMF(self.flatten_tree(kill_tree))
+
