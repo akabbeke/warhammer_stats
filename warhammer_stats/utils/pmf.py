@@ -20,7 +20,7 @@ class PMF:
         self.values = list(values)
 
     def __str__(self) -> str:
-        return str(self.values)
+        return str(self.rounded().values)
 
     def __len__(self) -> int:
         return len(self.values)
@@ -133,8 +133,11 @@ class PMF:
         Roll the values of the PMF left or right. If rolling right pad the left with zeroes.
         If rolling left flatten values into the zero value.
         """
-        if roll_value == 0: # pylint: disable=no-else-return
+        if roll_value == 0:  # pylint: disable=no-else-return
             return self
+        elif roll_value < 0:
+            index = (-1 * roll_value) + 1
+            return PMF([sum(self.values[:index])] + self.values[index:])
         elif roll_value > 0:
             return PMF([0.0] * roll_value + self.values)
         return PMF([sum(self.values[:(-1*roll_value)+1])] + self.values[(-1*roll_value)+1:])
@@ -156,13 +159,13 @@ class PMF:
         """
         return PMF([0.0] * min_val + [sum(self.values[:min_val+1])] + self.values[min_val+1:])
 
-    def mean(self) -> PMF:
+    def mean(self) -> float:
         """
         Return the expected value of the PMF
         """
         return sum([x*p for x, p in enumerate(self.values)])
 
-    def std(self) -> PMF:
+    def std(self) -> float:
         """
         Return the standard deviation of the PMF
         """
@@ -170,8 +173,14 @@ class PMF:
         exp_mean = sum([(x**2)*p for x, p in enumerate(self.values)])
         return (exp_mean - mean**2)**(0.5)
 
+    def rounded(self) -> PMF:
+        """
+        Return a PMF of the rounded values
+        """
+        return PMF([round(x, 4) for x in self.values])
+
     @classmethod
-    def dn(cls, dice_sides: int) -> PMF: # pylint: disable=invalid-name
+    def dn(cls, dice_sides: int) -> PMF:  # pylint: disable=invalid-name
         """
         Return the PMD for a dice with dice_sides number of sides
         """
@@ -246,6 +255,21 @@ class PMF:
             new_dist.append(prob)
         return PMF(new_dist)
 
+    @classmethod
+    def zero(cls) -> PMF:
+        """
+        A PMF with a 100% chance of being zero
+        """
+        return PMF([1.0])
+
+    @classmethod
+    def is_null_prob(cls, prob) -> bool:
+        """
+        A PMF with a 100% chance of being zero
+        """
+        return prob < 0.00001
+
+
 class PMFCollection:
     """
     Discrete Probability Distribution - Used to keep track of collections of PMFs
@@ -271,11 +295,11 @@ class PMFCollection:
         except IndexError:
             return defualt
 
-    def thresh_mod(self, thresh_mod: int) -> PMFCollection:
+    def roll(self, thresh_mod: int) -> PMFCollection:
         """
         Modify the collection based on a dice modifer
         """
-        if thresh_mod == 0 or self.pmfs == []: # pylint: disable=no-else-return
+        if thresh_mod == 0 or self.pmfs == []:  # pylint: disable=no-else-return
             return self
         elif thresh_mod > 0:
             return PMFCollection(self.pmfs[:1] * thresh_mod + self.pmfs)

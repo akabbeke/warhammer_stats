@@ -1,49 +1,50 @@
 from warhammer_stats import Attack, Weapon, Target, PMFCollection
-from warhammer_stats.modifiers import ModifierCollection, ReRollOnes
+from warhammer_stats.utils.modifier_collection import ModifierCollection
+from warhammer_stats.modifiers.splitter_modifiers import OnAModifiableRollOfNAddAP
 
 # Define a re-roll ones weapon modifier
 weapon_mods = ModifierCollection(
-    hit_mods=[ReRollOnes()]
+    wound_mods=[OnAModifiableRollOfNAddAP(6, 3)]
 )
 
 # Define the weapon. In this case it is the battle cannon with
 # d3 damage. It is firing twice so we specify two D6s as the
 # number of shots. We specify that we are using the re-roll ones
 # modifier.
-weapon = Weapon(
-    bs=3,
-    shots=PMFCollection.mdn(2, 6),
-    strength=8,
-    ap=3,
-    damage=PMFCollection.mdn(1, 6),
+shuriken_catapult = Weapon(
+    bs=4,
+    shots=PMFCollection.static(2),
+    strength=4,
+    ap=0,
+    damage=PMFCollection.static(1),
     modifiers=weapon_mods
 )
 
+bolter = Weapon(
+    bs=4,
+    shots=PMFCollection.static(2),
+    strength=4,
+    ap=0,
+    damage=PMFCollection.static(1),
+)
+
+
 # Define the target. In this case it is a space marine eradicator with three wounds.
 # He has no invulnerable or FNP so both are 7+ saves.
-target = Target(
+space_marine = Target(
     toughness=4,
     save=3,
     invuln=7,
     fnp=7,
-    wounds=3
+    wounds=2
 )
 
-# Create an attack with the weapon and target.
-attack = Attack(weapon, target, True)
-
-# Run the calculation.
-result = attack.run()
+shuriken_results = Attack(shuriken_catapult, space_marine).run()
+bolter_results = Attack(bolter, space_marine).run()
 
 # Print the mean of the kill distribution
-print(f'Average: {result.kill_dist.mean()}')
+print(f'Average: {shuriken_results.total_damage_dist.mean()}')
 
-# Get the probabiltiy of scoring EXACTLY two kills
-print(f'Probabiltiy == 2: {result.kill_dist.get(2)}')
+print(f'Average: {bolter_results.total_damage_dist.mean()}')
 
-# Get the probabiltiy of scoring AT LEAST two kills
-print(f'Probabiltiy >= 2: {result.kill_dist.cumulative().get(2)}')
-
-# Print the full PMF
-print(result.kill_dist.cumulative().values)
-
+print(shuriken_results.total_damage_dist.mean()/bolter_results.total_damage_dist.mean())

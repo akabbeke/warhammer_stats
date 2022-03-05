@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from warhammer_stats.pmf import PMF
+from warhammer_stats.utils.pmf import PMF
 
 class TestAttack(TestCase):
 

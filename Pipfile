@@ -8,10 +8,11 @@ nose = "*"
 twine = "*"
 pipenv = "*"
 pylint = "*"
+flake8 = "*"
 
 [packages]
 numpy = "*"
 mypy = "*"
 
 [requires]
-python_version = "3.7"
+python_version = "3.9.10"
