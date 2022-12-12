@@ -23,8 +23,6 @@ def generate_kill_tree(wounds: int, dice: int, damage_pmf: PMF, mortals_pmf: PMF
     """Generates the tree composed of the one-kill trees"""
     if dice <= 0:
         return [(0, 1)]
-        # foo = generate_mortal_kill_tree(wounds, 1, mortal_pmf)
-        # return foo
     else:
         kills = []
         max_depth = get_max_depth(wounds, dice, damage_pmf)
