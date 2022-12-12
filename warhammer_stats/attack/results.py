@@ -168,6 +168,21 @@ class SavePhaseResults(ResultsBase):
         wounds_dist (PMF): The distribution of successful wounds
         mortal_wound_dist (PMF): The distribution of mortal wounds generated
     """
+    def multiply_by(self, other_pmf: PMF) -> SavePhaseResults:
+        pmfs: dict = {
+            'failed_armour_save_dist': [],
+        }
+
+        for dice_count, event_prob in enumerate(other_pmf.values):
+            # If the probability is zero then no-op
+            if PMF.is_null_prob(event_prob):
+                continue
+
+            pmfs['failed_armour_save_dist'].append(PMF.convolve_many([self.failed_armour_save_dist] * dice_count) * event_prob)
+
+
+        return SavePhaseResults(**{k: PMF.flatten(pmfs[k]) for k in pmfs})
+
     def __init__(self, failed_armour_save_dist: PMF):
         self.failed_armour_save_dist = failed_armour_save_dist
 
@@ -179,6 +194,21 @@ class DamagePhaseResults(ResultsBase):
         wounds_dist (PMF): The distribution of successful wounds
         mortal_wound_dist (PMF): The distribution of mortal wounds generated
     """
+    def multiply_by(self, other_pmf: PMF) -> DamagePhaseResults:
+        pmfs: dict = {
+            'damage_dist': [],
+        }
+
+        for dice_count, event_prob in enumerate(other_pmf.values):
+            # If the probability is zero then no-op
+            if PMF.is_null_prob(event_prob):
+                continue
+
+            pmfs['damage_dist'].append(PMF.convolve_many([self.damage_dist] * dice_count) * event_prob)
+
+
+        return DamagePhaseResults(**{k: PMF.flatten(pmfs[k]) for k in pmfs})
+
     def __init__(self, damage_dist: PMF):
         self.damage_dist = damage_dist
 
@@ -190,5 +220,21 @@ class KillPhaseResults:
         wounds_dist (PMF): The distribution of successful wounds
         mortal_wound_dist (PMF): The distribution of mortal wounds generated
     """
+    def multiply_by(self, other_pmf: PMF) -> KillPhaseResults:
+        pmfs: dict = {
+            'kill_dist': [],
+        }
+
+        for dice_count, event_prob in enumerate(other_pmf.values):
+            # If the probability is zero then no-op
+            if PMF.is_null_prob(event_prob):
+                continue
+
+            pmfs['kill_dist'].append(PMF.convolve_many([self.kill_dist] * dice_count) * event_prob)
+
+
+        return KillPhaseResults(**{k: PMF.flatten(pmfs[k]) for k in pmfs})
+
+
     def __init__(self, kill_dist: PMF):
         self.kill_dist = kill_dist

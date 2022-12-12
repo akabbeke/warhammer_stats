@@ -129,7 +129,7 @@ class KillPhase(PhaseBase):
         for dice, event_prob in enumerate(dist.values):
             if PMF.is_null_prob(event_prob):
                 continue
-            damage_dists.append(calculate_kills(self.target.wounds, dice, damage_dist, mortal_wound_dist, mortal_wound_dist) * event_prob)
+            damage_dists.append(calculate_kills(self.target.wounds, dice, damage_dist, mortal_wound_dist) * event_prob)
 
         return PMF.flatten(damage_dists)
     
