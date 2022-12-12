@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from . import PhaseBase
+from .phase import PhaseBase
 from ..results import DamagePhaseResults
 
 from ..rolls.damage_roll import DamageRoll

@@ -4,15 +4,18 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
-nose = "*"
-twine = "*"
 pipenv = "*"
 pylint = "*"
 flake8 = "*"
+twine = "*"
 
 [packages]
 numpy = "*"
 mypy = "*"
 
 [requires]
-python_version = "3.9.10"
+python_version = "3.9"
+
+[scripts]
+test = "python -m unittest discover tests"
+mypy = "mypy warhammer_stats"

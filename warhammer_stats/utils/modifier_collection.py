@@ -46,7 +46,7 @@ class ModifierCollection:
     def _sort_priority(self, mods: list) -> list:
         return sorted(mods, key=lambda x: x.priority, reverse=True)
 
-    def _mod_dice(self, col: PMFCollection, mods: list, thresh=None,
+    def _mod_dice(self, collection: PMFCollection, mods: list, thresh=None,
                   mod_thresh=None) -> PMFCollection:
         """Modifies the dice distribution
 
@@ -71,12 +71,12 @@ class ModifierCollection:
             The modified PMF Collection
         """
         for mod in mods:
-            col = mod.modify_re_roll(col, thresh, mod_thresh)
+            collection = mod.modify_re_roll(collection, thresh, mod_thresh)
         for mod in mods:
-            col = mod.modify_dice(col, thresh, mod_thresh)
-        return col
+            collection = mod.modify_dice(collection, thresh, mod_thresh)
+        return collection
 
-    def _divert_dice(self, col: PMFCollection, mods: list, thresh=None,
+    def _divert_dice(self, collection: PMFCollection, mods: list, thresh=None,
                      mod_thresh=None) -> PMFCollection:
         """Modifies the dice
 
@@ -101,14 +101,14 @@ class ModifierCollection:
             The modified PMF Collection
         """
         for mod in mods:
-            col = mod.divert_dice(col, thresh, mod_thresh)
-        return col
+            collection = mod.divert_dice(collection, thresh, mod_thresh)
+        return collection
 
-    def modify_shot_dice(self, col: PMFCollection) -> PMFCollection:
+    def modify_shot_dice(self, collection: PMFCollection) -> PMFCollection:
         """
-        Modify the PMF of shot volume the dice. Ususally for re-rolls.
+        Modify the PMF of shot volume the dice. Usually for re-rolls.
         """
-        return self._mod_dice(col, self.attacks_mods)
+        return self._mod_dice(collection, self.attacks_mods)
 
     def split_on_hit(self, hit_dist, hit_modifier, mod_getter, unmod_getter):
         hit_slices = [[0, ModifierCollection()]]
@@ -225,11 +225,11 @@ class ModifierCollection:
             thresh = mod.modify_threshold(thresh)
         return max(thresh, 2)  # 's always fail
 
-    def modify_hit_dice(self, col: PMFCollection, thresh: int, mod_thresh: int) -> PMFCollection:
+    def modify_hit_dice(self, collection: PMFCollection, thresh: int, mod_thresh: int) -> PMFCollection:
         """
         Modify the PMF of hit dice. Ususally for re-rolls.
         """
-        return self._mod_dice(col, self.hit_mods, thresh, mod_thresh)
+        return self._mod_dice(collection, self.hit_mods, thresh, mod_thresh)
 
     def modify_wound_thresh(self, thresh: int) -> int:
         """

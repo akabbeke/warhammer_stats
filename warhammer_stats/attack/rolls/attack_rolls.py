@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from . import RollBase
+from .roll import RollBase
 from ...utils.pmf import PMF
 
 

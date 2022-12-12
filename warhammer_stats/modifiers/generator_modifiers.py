@@ -22,7 +22,7 @@ class GeneratorModifiers(Modifier):
 
     def _pmf_collection(self) -> PMFCollection:
         return PMFCollection(
-            [PMF.static(0)] * self.thresh + [PMF.static(self.value)] * (7 - self.thresh)
+            [PMF.static(0) if i < self.thresh else PMFCollection.static(self.value).convolve() for i in range(8)]
         )
 
     def to_dict(self):
@@ -89,7 +89,7 @@ class GenerateD3MortalWoundsUnmodifiable(GeneratorModifiers):
 
     def _pmf_collection(self) -> PMFCollection:
         return PMFCollection(
-            [PMF.static(0)] * self.thresh + [PMFCollection.mdn(self.value, 3).convolve()] * (7 - self.thresh)
+            [PMF.static(0) if i < self.thresh else PMFCollection.mdn(self.value, 3).convolve() for i in range(8)]
         )
 
 
@@ -99,7 +99,7 @@ class GenerateD3MortalWoundsModifiable(GeneratorModifiers):
 
     def _pmf_collection(self) -> PMFCollection:
         return PMFCollection(
-            [PMF.static(0)] * self.thresh + [PMFCollection.mdn(self.value, 3).convolve()] * (7 - self.thresh)
+            [PMF.static(0) if i < self.thresh else PMFCollection.mdn(self.value, 3).convolve() for i in range(8)]
         )
 
 
@@ -109,7 +109,7 @@ class GenerateD6MortalWoundsUnmodifiable(GeneratorModifiers):
 
     def _pmf_collection(self) -> PMFCollection:
         return PMFCollection(
-            [PMF.static(0)] * self.thresh + [PMFCollection.mdn(self.value, 6).convolve()] * (7 - self.thresh)
+            [PMF.static(0) if i < self.thresh else PMFCollection.mdn(self.value, 6).convolve() for i in range(8)]
         )
 
 
@@ -119,18 +119,18 @@ class GenerateD6MortalWoundsModifiable(GeneratorModifiers):
 
     def _pmf_collection(self) -> PMFCollection:
         return PMFCollection(
-            [PMF.static(0)] * self.thresh + [PMFCollection.mdn(self.value, 6).convolve()] * (7 - self.thresh)
+            [PMF.static(0) if i < self.thresh else PMFCollection.mdn(self.value, 6).convolve() for i in range(8)]
         )
 
 
 class EndAttackGenerator(GeneratorModifiers):
-    def modify_dice(self, col: PMFCollection, *_) -> PMFCollection:
+    def modify_dice(self, collection: PMFCollection, *_) -> PMFCollection:
         def null_values(x, thresh):
             values = x.values[:]
             values[0] += sum(values[thresh:])
             values[thresh:] = [0.0] * len(values[thresh:])
             return PMF(values)
-        return col.map(lambda x: null_values(x, self.thresh))
+        return collection.map(lambda x: null_values(x, self.thresh))
 
 
 class EndAttackAndGenrateMortalWoundsModifiable(EndAttackGenerator):

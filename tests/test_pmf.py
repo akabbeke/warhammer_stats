@@ -3,7 +3,6 @@ from unittest import TestCase
 from warhammer_stats.utils.pmf import PMF
 
 class TestAttack(TestCase):
-
     def setUp(self):
         self.pmf_examples = [
             PMF.dn(6),

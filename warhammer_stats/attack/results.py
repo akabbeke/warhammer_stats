@@ -6,22 +6,6 @@ from ..utils.pmf import PMF
 
 
 class ResultsBase:
-    def multiply_by(self, other_pmf: PMF) -> ResultsBase:
-        input_names = [k for k in inspect.signature(self.__class__.__init__).parameters.keys() if k != 'self']
-
-        pmfs = {k: [] for k in input_names if isinstance(getattr(self, k), PMF)}
-
-        for dice_count, event_prob in enumerate(other_pmf.values):
-            # If the probability is zero then no-op
-            if PMF.is_null_prob(event_prob):
-                continue
-
-            for input_name in input_names:
-                pmfs[input_name].append(PMF.convolve_many([getattr(self, input_name)] * dice_count) * event_prob)
-
-        flattened_pmfs = {k: PMF.flatten(pmfs[k]) for k in pmfs}
-        return self.__class__(**flattened_pmfs)
-
     @classmethod
     def merge(cls, left, right):
         if not (isinstance(left, cls) and isinstance(right, cls)):
@@ -36,11 +20,12 @@ class ResultsBase:
         )
 
 class AttackResults:
-    def __init__(self, damage_dist, mortal_wound_dist, self_wound_dist, total_damage_dist):
+    def __init__(self, damage_dist, mortal_wound_dist, self_wound_dist, total_damage_dist, kills_dist):
         self.damage_dist = damage_dist
         self.mortal_wound_dist = mortal_wound_dist
         self.self_wound_dist = self_wound_dist
         self.total_damage_dist = total_damage_dist
+        self.kills_dist = kills_dist
 
 
 class AttacksPhaseResults:
@@ -64,7 +49,7 @@ class HitPhaseResults(ResultsBase):
         self_inflicted_dist (PMF): The distribution of wounds inflicted on the attacker
     """
     def __init__(self, successful_hit_dist: PMF, extra_hit_roll_dist: PMF, extra_automatic_wound_dist: PMF,
-                 extra_automatic_hit_dist: PMF, mortal_wound_dist: PMF, self_wound_dist: PMF):
+                 extra_automatic_hit_dist: PMF, mortal_wound_dist: PMF, self_wound_dist: PMF) -> None:
         self.successful_hit_dist = successful_hit_dist
         self.extra_hit_roll_dist = extra_hit_roll_dist
         self.extra_automatic_wound_dist = extra_automatic_wound_dist
@@ -77,7 +62,7 @@ class HitPhaseResults(ResultsBase):
         """
         The combined damage distribution from the hit and exploding wounds
         """
-        return PMF.convolve_many([self.hit_dist, self.exploding_dice_dist])
+        return PMF.convolve_many([self.successful_hit_dist, self.extra_automatic_hit_dist])
 
     @classmethod
     def empty(cls) -> HitPhaseResults:
@@ -85,16 +70,42 @@ class HitPhaseResults(ResultsBase):
         Return an empty set of results
         """
         return HitPhaseResults(
-            hit_dist=PMF.static(0),
-            exploding_dice_dist=PMF.static(0),
+            successful_hit_dist=PMF.static(0),
+            extra_hit_roll_dist=PMF.static(0),
+            extra_automatic_wound_dist=PMF.static(0),
+            extra_automatic_hit_dist=PMF.static(0),
             mortal_wound_dist=PMF.static(0),
-            self_inflicted_dist=PMF.static(0),
-            wound_dist=PMF.static(0),
+            self_wound_dist=PMF.static(0),
         )
+
+
+    def multiply_by(self, other_pmf: PMF) -> HitPhaseResults:
+        pmfs: dict = {
+            'successful_hit_dist': [],
+            'extra_hit_roll_dist': [],
+            'extra_automatic_wound_dist': [],
+            'extra_automatic_hit_dist': [],
+            'mortal_wound_dist': [],
+            'self_wound_dist': [],
+        }
+
+        for dice_count, event_prob in enumerate(other_pmf.values):
+            # If the probability is zero then no-op
+            if PMF.is_null_prob(event_prob):
+                continue
+
+            pmfs['successful_hit_dist'].append(PMF.convolve_many([self.successful_hit_dist] * dice_count) * event_prob)
+            pmfs['extra_hit_roll_dist'].append(PMF.convolve_many([self.extra_hit_roll_dist] * dice_count) * event_prob)
+            pmfs['extra_automatic_wound_dist'].append(PMF.convolve_many([self.extra_automatic_wound_dist] * dice_count) * event_prob)
+            pmfs['extra_automatic_hit_dist'].append(PMF.convolve_many([self.extra_automatic_hit_dist] * dice_count) * event_prob)
+            pmfs['mortal_wound_dist'].append(PMF.convolve_many([self.mortal_wound_dist] * dice_count) * event_prob)
+            pmfs['self_wound_dist'].append(PMF.convolve_many([self.self_wound_dist] * dice_count) * event_prob)
+
+        return HitPhaseResults(**{k: PMF.flatten(pmfs[k]) for k in pmfs})
 
     def recursive_results(self) -> HitPhaseResults:
         results = self.multiply_by(self.extra_hit_roll_dist)
-        results.extra_hit_roll_dist = PMF.static(0)
+        results.successful_hit_dist = PMF.static(0)
         results.extra_automatic_hit_dist = PMF.static(0)
         results.extra_automatic_wound_dist = PMF.static(0)
         return results
@@ -118,8 +129,30 @@ class WoundPhaseResults(ResultsBase):
         self.mortal_wound_dist = mortal_wound_dist
         self.self_wound_dist = self_wound_dist
 
+    def multiply_by(self, other_pmf: PMF) -> WoundPhaseResults:
+        pmfs: dict = {
+            'successful_wound_dist': [],
+            'extra_wound_roll_dist': [],
+            'extra_automatic_wound_dist': [],
+            'mortal_wound_dist': [],
+            'self_wound_dist': [],
+        }
+
+        for dice_count, event_prob in enumerate(other_pmf.values):
+            # If the probability is zero then no-op
+            if PMF.is_null_prob(event_prob):
+                continue
+
+            pmfs['successful_wound_dist'].append(PMF.convolve_many([self.successful_wound_dist] * dice_count) * event_prob)
+            pmfs['extra_wound_roll_dist'].append(PMF.convolve_many([self.extra_wound_roll_dist] * dice_count) * event_prob)
+            pmfs['extra_automatic_wound_dist'].append(PMF.convolve_many([self.extra_automatic_wound_dist] * dice_count) * event_prob)
+            pmfs['mortal_wound_dist'].append(PMF.convolve_many([self.mortal_wound_dist] * dice_count) * event_prob)
+            pmfs['self_wound_dist'].append(PMF.convolve_many([self.self_wound_dist] * dice_count) * event_prob)
+
+        return WoundPhaseResults(**{k: PMF.flatten(pmfs[k]) for k in pmfs})
+
     def recursive_results(self) -> WoundPhaseResults:
-        results = self.multiply_by(self.extra_wound_roll_dist)
+        results: WoundPhaseResults = self.multiply_by(self.extra_wound_roll_dist)
         results.extra_wound_roll_dist = PMF.static(0)
         results.extra_automatic_wound_dist = PMF.static(0)
         return results

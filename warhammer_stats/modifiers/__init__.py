@@ -1,5 +1,7 @@
 from ..utils.pmf import PMFCollection
 
+from typing import Optional
+
 
 # pylint: disable=R0201,C0302,R0913,R0904
 class Modifier:
@@ -8,11 +10,11 @@ class Modifier:
     def to_dict(self):
         return {'name': self.__class__.__name__}
 
-    def modify_dice(self, col: PMFCollection, __: int, ___: int) -> PMFCollection:
-        return col
+    def modify_dice(self, collection: PMFCollection, __: int, ___: int) -> PMFCollection:
+        return collection
 
-    def modify_re_roll(self, col: PMFCollection, _: int, __: int) -> PMFCollection:
-        return col
+    def modify_re_roll(self, collection: PMFCollection, thresh: int, mod_thresh: int) -> PMFCollection:
+        return collection
 
     def modify_threshold(self, thresh: int) -> int:
         return thresh
@@ -32,34 +34,34 @@ class Modifier:
     def modify_toughness(self, toughness) -> int:
         return toughness
 
-    def extra_automatic_hit_modifiable(self) -> PMFCollection:
+    def extra_automatic_hit_modifiable(self) -> Optional[PMFCollection]:
         return None
 
-    def extra_automatic_hit_unmodifiable(self) -> PMFCollection:
+    def extra_automatic_hit_unmodifiable(self) -> Optional[PMFCollection]:
         return None
 
-    def extra_hit_roll_modifiable(self) -> PMFCollection:
+    def extra_hit_roll_modifiable(self) -> Optional[PMFCollection]:
         return None
 
-    def extra_hit_roll_unmodifiable(self) -> PMFCollection:
+    def extra_hit_roll_unmodifiable(self) -> Optional[PMFCollection]:
         return None
 
-    def extra_automatic_wounds_modifiable(self) -> PMFCollection:
+    def extra_automatic_wounds_modifiable(self) -> Optional[PMFCollection]:
         return None
 
-    def extra_automatic_wounds_unmodifiable(self) -> PMFCollection:
+    def extra_automatic_wounds_unmodifiable(self) -> Optional[PMFCollection]:
         return None
 
-    def extra_wounds_rolls_modifiable(self) -> PMFCollection:
+    def extra_wounds_rolls_modifiable(self) -> Optional[PMFCollection]:
         return None
 
-    def extra_wounds_rolls_unmodifiable(self) -> PMFCollection:
+    def extra_wounds_rolls_unmodifiable(self) -> Optional[PMFCollection]:
         return None
 
-    def extra_mortal_wound_modifiable(self) -> PMFCollection:
+    def extra_mortal_wound_modifiable(self) -> Optional[PMFCollection]:
         return None
 
-    def extra_mortal_wound_unmodifiable(self) -> PMFCollection:
+    def extra_mortal_wound_unmodifiable(self) -> Optional[PMFCollection]:
         return None
 
     def self_wound_thresh(self) -> int:

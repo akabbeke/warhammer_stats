@@ -1,4 +1,4 @@
-from . import PhaseBase
+from .phase import PhaseBase
 from ..results import WoundPhaseResults
 from ..rolls.wound_rolls import (SuccessfulWoundRoll, ExtraWoundRollRoll, ExtraAutomaticWoundRoll, MortalWoundRoll, SelfWoundRoll)
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ...utils.pmf import PMF
-from . import RollBase
+from .roll import RollBase
 
 
 class SaveRollBase(RollBase):

@@ -108,8 +108,8 @@ class HalfDamage(Modifier):
     modify_invuln()
         Returns The modified PMFCollection
     """
-    def modify_dice(self, col: PMFCollection, *_) -> PMFCollection:
-        return col.map(lambda x: x.div_min_one(2))
+    def modify_dice(self, collection: PMFCollection, *_) -> PMFCollection:
+        return collection.map(lambda x: x.div_min_one(2))
 
 
 class Overheat(Modifier):
@@ -138,7 +138,7 @@ class MinimumValue(Modifier):
 
     Methods
     -------
-    modify_dice(col: PMFCollection)
+    modify_dice(collection: PMFCollection)
         Returns the PMFCollection where the PMFs have been modified to have a lower limit
     """
 
@@ -146,8 +146,8 @@ class MinimumValue(Modifier):
         super().__init__(*args, **kwargs)
         self.min_val = min_val
 
-    def modify_dice(self, col: PMFCollection, *_) -> PMFCollection:
-        return col.map(lambda x: x.min(self.min_val))
+    def modify_dice(self, collection: PMFCollection, *_) -> PMFCollection:
+        return collection.map(lambda x: x.min(self.min_val))
 
     def to_dict(self):
         return {
@@ -165,5 +165,5 @@ class HighestOfTwo(Modifier):
     modify_dice()
         Returns the PMFCollection of the highest of two dice
     """
-    def modify_dice(self, col: PMFCollection, *_) -> PMFCollection:
-        return col.map(lambda x: x.max_of_two())
+    def modify_dice(self, collection: PMFCollection, *_) -> PMFCollection:
+        return collection.map(lambda x: x.max_of_two())

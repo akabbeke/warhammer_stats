@@ -1,4 +1,4 @@
-from . import PhaseBase
+from .phase import PhaseBase
 from ..results import SavePhaseResults
 from ..rolls.save_rolls import FailedArmourSaveRoll
 

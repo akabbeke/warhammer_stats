@@ -6,7 +6,8 @@ website.
 
 """
 
-from .attack import Attack  # noqa: F401
+from .attack.attack import Attack  # noqa: F401
 from .utils.target import Target  # noqa: F401
 from .utils.weapon import Weapon  # noqa: F401
 from .utils.pmf import PMF, PMFCollection  # noqa: F401
+from .utils.modifier_collection import ModifierCollection  # noqa: F401

@@ -40,7 +40,7 @@ class AddNToAP(AddNTo):
         Returns the modified armour penetration value
     """
     def modify_ap(self, armour_penetration: int) -> int:
-        return armour_penetration + self.value
+        return max(armour_penetration + self.value, 0)
 
 
 class AddNToSave(AddNTo):
@@ -78,8 +78,8 @@ class AddNToVolume(AddNTo):
     modify_dice()
         Returns the modified PMFCollection
     """
-    def modify_dice(self, col: PMFCollection, *_) -> PMFCollection:
-        return col.map(lambda x: x.roll(self.value))
+    def modify_dice(self, collection: PMFCollection, *_) -> PMFCollection:
+        return collection.map(lambda x: x.roll(self.value))
 
 
 class SubtractNVolumeMinOne(AddNTo):
@@ -91,8 +91,8 @@ class SubtractNVolumeMinOne(AddNTo):
     modify_dice()
         Returns the modified PMFCollection
     """
-    def modify_dice(self, col: PMFCollection, *_) -> PMFCollection:
-        return col.map(lambda x: x.roll(-1 * self.value).min(1))
+    def modify_dice(self, collection: PMFCollection, *_) -> PMFCollection:
+        return collection.map(lambda x: x.roll(-1 * self.value).min(1))
 
 
 class AddND6(AddNTo):
@@ -104,8 +104,8 @@ class AddND6(AddNTo):
     modify_dice()
         Returns the modified PMFCollection
     """
-    def modify_dice(self, col: PMFCollection, *_) -> PMFCollection:
-        return PMFCollection(col.pmfs+[PMF.dn(6)])
+    def modify_dice(self, collection: PMFCollection, *_) -> PMFCollection:
+        return PMFCollection(collection.pmfs+[PMF.dn(6)])
 
 
 class AddND3(AddNTo):
@@ -117,5 +117,5 @@ class AddND3(AddNTo):
     modify_dice()
         Returns the modified PMFCollection
     """
-    def modify_dice(self, col: PMFCollection, *_) -> PMFCollection:
-        return PMFCollection(col.pmfs+[PMF.dn(3)])
+    def modify_dice(self, collection: PMFCollection, *_) -> PMFCollection:
+        return PMFCollection(collection.pmfs+[PMF.dn(3)])

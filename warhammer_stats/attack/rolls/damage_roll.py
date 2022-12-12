@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from . import RollBase
+from .roll import RollBase
 from ...utils.pmf import PMF, PMFCollection
 
 class DamageRollBase(RollBase):
@@ -18,23 +18,12 @@ class DamageRoll(DamageRollBase):
         # Apply modifiers to the damage distribution
         return modifiers.modify_damage_dice(self.weapon.damage).convolve()
 
-        # # Calculate the damge distribution after the feel no pain has been applied
-        # fnp_dist = self._calc_fnp_dist(mod_dists.convolve(), modifiers)
-
-        # # Clip the damage dist to the wounds characteristic of the target
-        # return fnp_dist.ceiling(self.target.wounds)
-
 
 class FeelNoPainRoll(DamageRollBase):
     def calc_sub_dist(self, modifiers) -> PMF:
         # Apply modifiers to the damage distribution
         return modifiers.modify_damage_dice(self.weapon.damage).convolve()
 
-        # # Calculate the damge distribution after the feel no pain has been applied
-        # fnp_dist = self._calc_fnp_dist(mod_dists.convolve(), modifiers)
-
-        # # Clip the damage dist to the wounds characteristic of the target
-        # return fnp_dist.ceiling(self.target.wounds)
 
     def _calc_fnp_dist(self, dist: PMF, modifiers) -> PMF:
         dists = []
@@ -50,3 +39,5 @@ class FeelNoPainRoll(DamageRollBase):
             binom_dists = dice_dists.convert_binomial_less_than(mod_thresh).convolve()
             dists.append(binom_dists * event_prob)
         return PMF.flatten(dists)
+
+

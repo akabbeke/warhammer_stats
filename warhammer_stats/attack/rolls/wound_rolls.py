@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ...utils.pmf import PMF, PMFCollection
-from . import RollBase
+from .roll import RollBase
 
 
 class WoundRollBase(RollBase):
@@ -20,25 +20,28 @@ class SuccessfulWoundRoll(WoundRollBase):
 
 class ExtraAutomaticWoundRoll(WoundRollBase):
     def calc_sub_dist(self, modifiers) -> PMF:
-        return PMFCollection.add_many([
-            modifiers.wound_generated_extra_automatic_wound_dist_modifiable().roll(self.wound_thresh_modifier(modifiers)),
-            modifiers.wound_generated_extra_automatic_wound_dist_unmodifiable(),
+        wound_dist = self.wound_dice_dists(modifiers).convolve()
+        return PMFCollection([
+            modifiers.wound_generated_extra_automatic_wound_dist_modifiable().mul_pmf(wound_dist.roll(self.hit_thresh_modifier(self.modifiers))),
+            modifiers.wound_generated_extra_automatic_wound_dist_unmodifiable().mul_pmf(wound_dist),
         ]).convolve()
 
 
 class ExtraWoundRollRoll(WoundRollBase):
     def calc_sub_dist(self, modifiers) -> PMF:
-        return PMFCollection.add_many([
-            modifiers.extra_wound_roll_dist_modifiable().roll(self.wound_thresh_modifier(modifiers)),
-            modifiers.extra_wound_roll_dist_unmodifiable(),
+        wound_dist = self.wound_dice_dists(modifiers).convolve()
+        return PMFCollection([
+            modifiers.extra_wound_roll_dist_modifiable().mul_pmf(wound_dist.roll(self.hit_thresh_modifier(self.modifiers))),
+            modifiers.extra_wound_roll_dist_unmodifiable().mul_pmf(wound_dist),
         ]).convolve()
 
 
 class MortalWoundRoll(WoundRollBase):
     def calc_sub_dist(self, modifiers) -> PMF:
-        return PMFCollection.add_many([
-            modifiers.wound_generated_mortal_wounds_dist_modifiable().roll(self.wound_thresh_modifier(modifiers)),
-            modifiers.wound_generated_mortal_wounds_dist_unmodifiable(),
+        wound_dist = self.wound_dice_dists(modifiers).convolve()
+        return PMFCollection([
+            modifiers.wound_generated_mortal_wounds_dist_modifiable().mul_pmf(wound_dist.roll(self.hit_thresh_modifier(self.modifiers))),
+            modifiers.wound_generated_mortal_wounds_dist_unmodifiable().mul_pmf(wound_dist),
         ]).convolve()
 
 
@@ -47,6 +50,6 @@ class SelfWoundRoll(WoundRollBase):
         thresh_self_wounds = modifiers.wound_self_wound_thresh()
         if thresh_self_wounds:
             self_thresh = max(thresh_self_wounds + self.wound_thresh_modifier(modifiers), 0)
-            return self.dice_dists(modifiers).convert_binomial_less_than(self_thresh).convolve()
+            return self.wound_dice_dists(modifiers).convert_binomial_less_than(self_thresh).convolve()
         else:
             return PMF.static(0)

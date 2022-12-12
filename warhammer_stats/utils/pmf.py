@@ -6,7 +6,7 @@ https://en.wikipedia.org/wiki/Probability_mass_function
 from __future__ import annotations
 import math
 
-from typing import List, Union, Callable
+from typing import Callable, Optional, Union
 from numpy import fft, zeros
 
 # pylint: disable=too-many-public-methods
@@ -16,8 +16,8 @@ class PMF:
     Discrete Probability Distribution - Used to keep track of the probability of random discrete
     events
     """
-    def __init__(self, values: List[float]):
-        self.values = list(values)
+    def __init__(self, values: list[float]):
+        self.values = [abs(x) for x in values]
 
     def __str__(self) -> str:
         return str(self.rounded().values)
@@ -28,10 +28,10 @@ class PMF:
     def __mul__(self, other: Union[int, float]) -> PMF:
         return PMF([other*x for x in self.values])
 
-    def __rmul__(self, other: Union[int, float]) -> PMF:
+    def __rmul__(self, other: int) -> PMF:
         return self.__mul__(other)
 
-    def ceiling(self, value: Union[int, float]) -> PMF:
+    def ceiling(self, value: int) -> PMF:
         """
         Sum the probability of all values >= the ceiling value
         """
@@ -43,7 +43,7 @@ class PMF:
                 new_values[value] += prob
         return PMF(new_values)
 
-    def trim_tail(self, thresh: Union[int, float]) -> PMF:
+    def trim_tail(self, thresh: int) -> PMF:
         """
         Trim the long tail off where p < threshold
         """
@@ -64,7 +64,7 @@ class PMF:
             cumu_dist.append(sum(self.values[i:]))
         return PMF(cumu_dist)
 
-    def re_roll_value(self, value: Union[int, float]) -> PMF:
+    def re_roll_value(self, value: int) -> PMF:
         """
         Re-roll a specific value (eg re-roll 1's)
         """
@@ -86,14 +86,14 @@ class PMF:
                     rr_mask[j] += self.values[i] * self.values[j]
         return PMF(rr_mask)
 
-    def convert_binomial(self, thresh: Union[int, float]) -> PMF:
+    def convert_binomial(self, thresh: int) -> PMF:
         """
         Convert the pmf into a binomial PMF by flatteing all values above or equal to the
         threshold into 1 and all below into 0
         """
         return PMF([sum(self.values[:thresh]), sum(self.values[thresh:])])
 
-    def convert_binomial_less_than(self, thresh: Union[int, float]) -> PMF:
+    def convert_binomial_less_than(self, thresh: int) -> PMF:
         """
         Convert the pmf into a binomial PMF by flatteing all values above or equal to the
         threshold into 0 and all below into 1
@@ -142,7 +142,7 @@ class PMF:
             return PMF([0.0] * roll_value + self.values)
         return PMF([sum(self.values[:(-1*roll_value)+1])] + self.values[(-1*roll_value)+1:])
 
-    def div_min_one(self, divisor: Union[int, float]) -> PMF:
+    def div_min_one(self, divisor: int) -> PMF:
         """
         Divide the index values of the PMF by the divisor with a minimum of one.
         I added this to accomidate Abadons half damage ability.
@@ -194,7 +194,7 @@ class PMF:
         return PMF([0.0] * static_value + [1.0])
 
     @classmethod
-    def convolve_many(cls, dists: List[PMF]) -> PMF:
+    def convolve_many(cls, dists: list[PMF]) -> PMF:
         """
         Convolve a list of 1d float arrays together, using FFTs.
         The arrays need not have the same length, but each array should
@@ -220,10 +220,10 @@ class PMF:
 
         # Assuming real inputs, the imaginary part of the output can
         # be ignored.
-        return PMF(convolution.real)
+        return PMF(list(convolution.real))
 
     @classmethod
-    def flatten(cls, dists: List[PMF]) -> PMF:
+    def flatten(cls, dists: list[PMF]) -> PMF:
         """
         Sum a set of distributions to produce a new distribution.
         """
@@ -234,7 +234,7 @@ class PMF:
         return PMF(flat_dist)
 
     @classmethod
-    def match_sizes(cls, dists: List[PMF]) -> PMF:
+    def match_sizes(cls, dists: list[PMF]) -> list[PMF]:
         """
         Map a set of PMFs to the same size
         """
@@ -274,7 +274,7 @@ class PMFCollection:
     """
     Discrete Probability Distribution - Used to keep track of collections of PMFs
     """
-    def __init__(self, pmfs: List[PMF] = None):
+    def __init__(self, pmfs: Optional[list[PMF]] = None):
         self.pmfs = pmfs or []
 
     def __bool__(self) -> bool:
@@ -286,14 +286,14 @@ class PMFCollection:
     def __str__(self) -> str:
         return str([x.values for x in self.pmfs])
 
-    def get(self, index: int, defualt: PMF = None) -> PMF:
+    def get(self, index: int, default: PMF = PMF.static(0)) -> PMF:
         """
         Fetch the PMF at the index
         """
         try:
             return self.pmfs[index]
         except IndexError:
-            return defualt
+            return default
 
     def roll(self, thresh_mod: int) -> PMFCollection:
         """
@@ -301,11 +301,8 @@ class PMFCollection:
         """
         if thresh_mod == 0 or self.pmfs == []:  # pylint: disable=no-else-return
             return self
-        elif thresh_mod > 0:
-            return PMFCollection(self.pmfs[:1] * thresh_mod + self.pmfs)
-        return PMFCollection(
-            (self.pmfs + self.pmfs[-1:] * (-1 * thresh_mod))[-1*len(self.pmfs):]
-        )
+        else:
+            return self.map(lambda x: x.roll(thresh_mod))
 
     def mul_col(self, other_collection: PMFCollection) -> PMFCollection:
         """
@@ -346,8 +343,14 @@ class PMFCollection:
         """
         return PMFCollection([func(x) for x in self.pmfs])
 
+    def plus(self, static_value: int)  -> PMFCollection:
+        """
+        returns the PMF collection plus a static value
+        """
+        return PMFCollection(self.pmfs + [PMF.static(static_value)])
+
     @classmethod
-    def add_many(cls, collection_list: List[PMFCollection]) -> PMFCollection:
+    def add_many(cls, collection_list: list[PMFCollection]) -> PMFCollection:
         """
         Adds many PMFCollection
         """
