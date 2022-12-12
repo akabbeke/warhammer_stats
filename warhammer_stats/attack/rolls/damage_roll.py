@@ -24,7 +24,6 @@ class FeelNoPainRoll(DamageRollBase):
         # Apply modifiers to the damage distribution
         return modifiers.modify_damage_dice(self.weapon.damage).convolve()
 
-
     def _calc_fnp_dist(self, dist: PMF, modifiers) -> PMF:
         dists = []
         mod_thresh = modifiers.modify_fnp_thresh(self.target.fnp)
@@ -39,5 +38,3 @@ class FeelNoPainRoll(DamageRollBase):
             binom_dists = dice_dists.convert_binomial_less_than(mod_thresh).convolve()
             dists.append(binom_dists * event_prob)
         return PMF.flatten(dists)
-
-

@@ -78,7 +78,6 @@ class HitPhaseResults(ResultsBase):
             self_wound_dist=PMF.static(0),
         )
 
-
     def multiply_by(self, other_pmf: PMF) -> HitPhaseResults:
         pmfs: dict = {
             'successful_hit_dist': [],
@@ -180,7 +179,6 @@ class SavePhaseResults(ResultsBase):
 
             pmfs['failed_armour_save_dist'].append(PMF.convolve_many([self.failed_armour_save_dist] * dice_count) * event_prob)
 
-
         return SavePhaseResults(**{k: PMF.flatten(pmfs[k]) for k in pmfs})
 
     def __init__(self, failed_armour_save_dist: PMF):
@@ -205,7 +203,6 @@ class DamagePhaseResults(ResultsBase):
                 continue
 
             pmfs['damage_dist'].append(PMF.convolve_many([self.damage_dist] * dice_count) * event_prob)
-
 
         return DamagePhaseResults(**{k: PMF.flatten(pmfs[k]) for k in pmfs})
 
@@ -232,9 +229,7 @@ class KillPhaseResults:
 
             pmfs['kill_dist'].append(PMF.convolve_many([self.kill_dist] * dice_count) * event_prob)
 
-
         return KillPhaseResults(**{k: PMF.flatten(pmfs[k]) for k in pmfs})
-
 
     def __init__(self, kill_dist: PMF):
         self.kill_dist = kill_dist

@@ -19,3 +19,5 @@ python_version = "3.9"
 [scripts]
 test = "python -m unittest discover tests"
 mypy = "mypy warhammer_stats"
+flake8 = "flake8 warhammer_stats"
+

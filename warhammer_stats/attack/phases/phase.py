@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ...utils.modifier_collection import ModifierCollection
-from ...utils.pmf import PMF, PMFCollection
+from ...utils.pmf import PMFCollection
 from ...utils.target import Target
 from ...utils.weapon import Weapon
 

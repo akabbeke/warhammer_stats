@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from functools import cached_property
 
 from ..utils.modifier_collection import ModifierCollection

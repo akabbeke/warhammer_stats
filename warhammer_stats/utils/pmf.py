@@ -343,7 +343,7 @@ class PMFCollection:
         """
         return PMFCollection([func(x) for x in self.pmfs])
 
-    def plus(self, static_value: int)  -> PMFCollection:
+    def plus(self, static_value: int) -> PMFCollection:
         """
         returns the PMF collection plus a static value
         """

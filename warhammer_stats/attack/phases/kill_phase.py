@@ -4,8 +4,6 @@ import math
 from collections import defaultdict
 from functools import cache
 
-from typing import Generic
-
 from ...utils.pmf import PMF
 from .phase import PhaseBase
 
@@ -41,7 +39,7 @@ def generate_kill_tree(wounds: int, dice: int, damage_pmf: PMF, mortals_pmf: PMF
 
 
 @cache
-def generate_mortal_kill_tree(wounds: int, wounds_left:int, mortal_pmf: PMF) -> list[tuple[int, float]]:
+def generate_mortal_kill_tree(wounds: int, wounds_left: int, mortal_pmf: PMF) -> list[tuple[int, float]]:
     """Generates the tree composed of the one-kill trees"""
     kills = []
 
@@ -54,7 +52,6 @@ def generate_mortal_kill_tree(wounds: int, wounds_left:int, mortal_pmf: PMF) -> 
             kills.append((1, damage_prob))
         else:
             kills.append((1 + wounds//(damage - wounds_left), damage_prob))
-    
     return normalize_tree(kills)
 
 
@@ -62,7 +59,7 @@ def generate_mortal_kill_tree(wounds: int, wounds_left:int, mortal_pmf: PMF) -> 
 def generate_one_kill_tree(wounds: int, depth: int, damage_pmf: PMF) -> tuple[list[tuple[int, float]], list[tuple[int, float, int]]]:
     """Generate the tree for the probability of dice required to get a single kill
     """
-    # The damages and kills lists are a list of pairs where the 
+    # The damages and kills lists are a list of pairs where the
     damages = []
     zeros = []
     if wounds <= 0:
@@ -87,24 +84,24 @@ def tree_to_pmf(tree: list[tuple[int, float]]) -> PMF:
     """
     tree_values: defaultdict = defaultdict(int)
     for dice_needed, probability in tree:
-         tree_values[dice_needed] += probability
+        tree_values[dice_needed] += probability
     values = [0.0] * (1 + max(tree_values.keys()))
     for k in tree_values:
-        values[k] =  tree_values[k]
+        values[k] = tree_values[k]
     return PMF(values)
 
 
 def normalize_tree(tree: list[tuple[int, float]]) -> list[tuple[int, float]]:
     tree_values: defaultdict = defaultdict(int)
     for dice_needed, probability in tree:
-         tree_values[dice_needed] += probability
+        tree_values[dice_needed] += probability
     return [(k, tree_values[k]) for k in sorted(tree_values.keys())]
 
 
 def normalize_tree_zeros(tree: list[tuple[int, float, int]]) -> list[tuple[int, float, int]]:
     tree_values: defaultdict = defaultdict(int)
     for dice_needed, probability, wounds_left in tree:
-         tree_values[(dice_needed, wounds_left)] += probability
+        tree_values[(dice_needed, wounds_left)] += probability
     return [(k[0], tree_values[k], k[1])for k in sorted(tree_values.keys())]
 
 
@@ -132,5 +129,3 @@ class KillPhase(PhaseBase):
             damage_dists.append(calculate_kills(self.target.wounds, dice, damage_dist, mortal_wound_dist) * event_prob)
 
         return PMF.flatten(damage_dists)
-    
-    
