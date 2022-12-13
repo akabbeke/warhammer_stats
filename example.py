@@ -2,15 +2,14 @@ from warhammer_stats import Attack, Weapon, Target, PMFCollection
 from warhammer_stats.utils.modifier_collection import ModifierCollection
 from warhammer_stats.modifiers.splitter_modifiers import OnAModifiableRollOfNAddAP
 
-# Define a re-roll ones weapon modifier
+# Define a modifier such that on a 6 to wound, add 3 AP to the
+# attack.
 weapon_mods = ModifierCollection(
     wound_mods=[OnAModifiableRollOfNAddAP(6, 3)]
 )
 
-# Define the weapon. In this case it is the battle cannon with
-# d3 damage. It is firing twice so we specify two D6s as the
-# number of shots. We specify that we are using the re-roll ones
-# modifier.
+# Define the weapon. In this case it is a shuriken catapult with 2 shots, strength 4, AP 0 and damage 1.
+# It has the modifiers defined above.
 shuriken_catapult = Weapon(
     bs=4,
     shots=PMFCollection.static(2),
@@ -20,6 +19,7 @@ shuriken_catapult = Weapon(
     modifiers=weapon_mods
 )
 
+# Define the weapon. In this case it is a bolter with 2 shots, strength 4, AP 0 and damage 1.
 bolter = Weapon(
     bs=4,
     shots=PMFCollection.static(2),
@@ -28,9 +28,8 @@ bolter = Weapon(
     damage=PMFCollection.static(1),
 )
 
-
 # Define the target. In this case it is a space marine eradicator with three wounds.
-# He has no invulnerable or FNP so both are 7+ saves.
+# He has no invulnerable or FNP so both are 7+ saves. He has a 4+ save.
 space_marine = Target(
     toughness=4,
     save=3,
