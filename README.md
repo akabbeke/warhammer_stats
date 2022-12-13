@@ -7,6 +7,8 @@ You can use pip to fetch the latest version of the library. https://pypi.org/pro
 `pipenv install warhammer-stats`
 
 # Example Usage
+The example script:
+
 ```python
 from warhammer_stats import Attack, MultiAttack, PMFCollection, Target, Weapon
 from warhammer_stats.modifiers.splitter_modifiers import \
@@ -73,6 +75,7 @@ print('battle_canon_results.kills_dist.cumulative', battle_canon_results.kills_d
 
 ```
 
+Output:
 
 ```bash
 > python example.py
