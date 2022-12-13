@@ -1,11 +1,12 @@
 import setuptools
 
 from pipenv.project import Project
-from pipenv.utils import convert_deps_to_pip
+from pipenv.utils.dependencies import convert_deps_to_pip
 
-pfile = Project(chdir=False).parsed_pipfile
-requirements = convert_deps_to_pip(pfile['packages'], r=False)
-test_requirements = convert_deps_to_pip(pfile['dev-packages'], r=False)
+project = Project(chdir=False).parsed_pipfile
+
+requirements = convert_deps_to_pip(project['packages'])
+test_requirements = convert_deps_to_pip(project['dev-packages'])
 
 with open("README.md", "r") as fh:
     long_description = fh.read()

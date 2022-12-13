@@ -19,13 +19,47 @@ class ResultsBase:
             **merged_pmfs
         )
 
-class AttackResults:
+    def repr_items(self):
+        return [f'  {k:30s} - avg: {round(v.mean(), 4):.4f}, std: {round(v.std(), 4):.4f}' for k, v in self.__dict__.items() if isinstance(v, PMF)]
+
+
+    def __repr__(self) -> str:
+        output = [
+            f'{self.__class__.__name__}(',
+            *self.repr_items(),
+            ')',
+        ]
+        return '\n'.join(output)
+
+    @classmethod
+    def combine(cls, results: list[ResultsBase]) -> ResultsBase:
+        if not all(isinstance(r, cls) for r in results):
+            raise TypeError('incorrect class types')
+
+        input_names = [k for k in inspect.signature(cls.__init__).parameters.keys() if k != 'self']
+
+        merged_pmfs = {k: PMF.convolve_many([getattr(r, k) for r in results]) for k in input_names if isinstance(getattr(results[0], k), PMF)}
+
+        return cls(
+            **merged_pmfs
+        )
+
+
+class AttackResults(ResultsBase):
     def __init__(self, damage_dist, mortal_wound_dist, self_wound_dist, total_damage_dist, kills_dist):
         self.damage_dist = damage_dist
         self.mortal_wound_dist = mortal_wound_dist
         self.self_wound_dist = self_wound_dist
         self.total_damage_dist = total_damage_dist
         self.kills_dist = kills_dist
+
+    def repr_items(self):
+        return [
+            f'  {"Mortal Wounds":20s} - avg: {self.mortal_wound_dist.mean():.4f}, std: {self.mortal_wound_dist.std():.4f}',
+            f'  {"Self Wounds":20s} - avg: {self.self_wound_dist.mean():.4f}, std: {self.self_wound_dist.std():.4f}',
+            f'  {"Total Damage":20s} - avg: {self.total_damage_dist.mean():.4f}, std: {self.total_damage_dist.std():.4f}',
+            f'  {"Kills":20s} - avg: {self.kills_dist.mean():.4f}, std: {self.kills_dist.std():.4f}',
+        ]
 
 
 class AttacksPhaseResults:

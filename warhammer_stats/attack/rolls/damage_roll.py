@@ -16,7 +16,7 @@ class DamageRollBase(RollBase):
 class DamageRoll(DamageRollBase):
     def calc_sub_dist(self, modifiers) -> PMF:
         # Apply modifiers to the damage distribution
-        return modifiers.modify_damage_dice(self.weapon.damage).convolve()
+        return modifiers.modify_damage_dice(self.weapon.damage).convolve().ceiling(self.target.wounds)
 
 
 class FeelNoPainRoll(DamageRollBase):

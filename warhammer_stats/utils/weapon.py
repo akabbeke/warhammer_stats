@@ -22,4 +22,5 @@ class Weapon:
         self.ap = ap  # pylint: disable=invalid-name
         self.damage = damage
         self.modifiers = modifiers or ModifierCollection()
+        self.name = name
         self.cost = cost

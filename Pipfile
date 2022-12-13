@@ -20,4 +20,5 @@ python_version = "3.9"
 test = "python -m unittest discover tests"
 mypy = "mypy warhammer_stats"
 flake8 = "flake8 warhammer_stats"
-
+build = "python setup.py sdist bdist_wheel"
+twine = "twine upload dist/* --username __token__ --password $PYPI_TOKEN"

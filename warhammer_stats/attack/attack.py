@@ -22,7 +22,7 @@ class Attack:
     """Generates the probability distribution for damage dealt from an attack sequence
 
     Note:
-        This can be pretty computaionally expensive to run. Don't go crazy with the number
+        This can be pretty computationally expensive to run. Don't go crazy with the number
         attacks and expect it to run quickly.
 
     Args:
@@ -33,26 +33,26 @@ class Attack:
         msg (str): Human readable string describing the exception.
         code (int): Exception error code.
     """
-    def __init__(self, weapon: Weapon, target: Target):
+    def __init__(self, weapon: Weapon, target: Target) -> None:
         self.weapon = weapon
         self.target = target
 
-    def _hit_phase(self):
+    def _hit_phase(self) -> HitPhase:
         return HitPhase(self.weapon, self.target, self.modifiers)
 
-    def _wound_phase(self):
+    def _wound_phase(self) -> WoundPhase:
         return WoundPhase(self.weapon, self.target, self.modifiers)
 
-    def _save_phase(self):
+    def _save_phase(self) -> SavePhase:
         return SavePhase(self.weapon, self.target, self.modifiers)
 
-    def _attacks_phase(self):
+    def _attacks_phase(self) -> AttacksPhase:
         return AttacksPhase(self.weapon, self.target, self.modifiers)
 
-    def _damage_phase(self):
+    def _damage_phase(self) -> DamagePhase:
         return DamagePhase(self.weapon, self.target, self.modifiers)
 
-    def _kill_phase(self):
+    def _kill_phase(self) -> KillPhase:
         return KillPhase(self.weapon, self.target, self.modifiers)
 
     @property
@@ -61,52 +61,61 @@ class Attack:
         return self.weapon.modifiers + self.target.modifiers
 
     @cached_property
-    def hit_phase_results(self):
+    def hit_phase_results(self) -> AttackResults:
+        """Return the results of the hit phase"""
         return self._hit_phase().results().with_recursive()
 
     @cached_property
-    def wound_phase_results(self):
+    def wound_phase_results(self) -> AttackResults:
+        """Return the results of the wound phase"""
         return self._wound_phase().results().with_recursive()
 
     @cached_property
-    def save_phase_results(self):
+    def save_phase_results(self) -> AttackResults:
+        """Return the results of the save phase"""
         return self._save_phase().results()
 
     @cached_property
-    def damage_phase_results(self):
+    def damage_phase_results(self) -> AttackResults:
+        """Return the results of the damage phase"""
         return self._damage_phase().results()
 
     @cached_property
-    def attacks_phase_results(self):
+    def attacks_phase_results(self) -> AttackResults:
+        """Return the results of the attacks phase"""
         return self._attacks_phase().results()
 
     @cached_property
-    def total_successful_hits_dist(self):
+    def total_successful_hits_dist(self) -> PMF:
+        """Return the probability distribution of successful hits"""
         return PMF.convolve_many([
             self.hit_phase_results.successful_hit_dist,
             self.hit_phase_results.extra_automatic_hit_dist,
         ])
 
     @cached_property
-    def actual_wound_phase_results(self):
-        return self.wound_phase_results.multiply_by(self.total_successful_hits_dist)
-
-    @cached_property
-    def total_successfull_wounds_dist(self):
+    def total_successful_wounds_dist(self) -> PMF:
+        """Return the combined probability distribution of all successful wounds"""
         return PMF.convolve_many([
-            self.actual_wound_phase_results.successful_wound_dist,
-            self.actual_wound_phase_results.extra_automatic_wound_dist,
+            self.hit_wound_phase_results.successful_wound_dist,
+            self.hit_wound_phase_results.extra_automatic_wound_dist,
             self.hit_phase_results.extra_automatic_wound_dist
         ])
 
     @cached_property
-    def actual_failed_saves_dist(self):
+    def actual_failed_saves_dist(self) -> PMF:
+        """Return the probability distribution of failed saves"""
         return self.save_phase_results.multiply_by(
-            self.total_successfull_wounds_dist
+            self.total_successful_wounds_dist
         ).failed_armour_save_dist
 
     @cached_property
-    def total_damage_results(self):
+    def hit_wound_phase_results(self) -> AttackResults:
+        """Return the results of the wound phase multiplied by the number of successful hits"""
+        return self.wound_phase_results.multiply_by(self.total_successful_hits_dist)
+
+    @cached_property
+    def total_damage_results(self) -> AttackResults:
         return self.damage_phase_results.multiply_by(
             self.actual_failed_saves_dist
         ).multiply_by(
@@ -114,20 +123,20 @@ class Attack:
         )
 
     @cached_property
-    def total_mortal_wounds(self):
+    def total_mortal_wounds(self) -> PMF:
         return PMF.convolve_many([
             self.hit_phase_results.multiply_by(self.attacks_phase_results.attack_number_dist).mortal_wound_dist,
-            self.actual_wound_phase_results.multiply_by(self.attacks_phase_results.attack_number_dist).mortal_wound_dist,
+            self.hit_wound_phase_results.multiply_by(self.attacks_phase_results.attack_number_dist).mortal_wound_dist,
         ])
 
     @cached_property
-    def total_self_wounds(self):
+    def total_self_wounds(self) -> PMF:
         return PMF.convolve_many([
             self.hit_phase_results.self_wound_dist,
-            self.actual_wound_phase_results.self_wound_dist,
+            self.hit_wound_phase_results.self_wound_dist,
         ])
 
-    def apply_feel_no_pain(self, dist: PMF):
+    def apply_feel_no_pain(self, dist: PMF) -> PMF:
         dists = []
         mod_thresh = self.modifiers.modify_fnp_thresh(self.target.fnp)
         for dice, event_prob in enumerate(dist.values):
@@ -143,26 +152,26 @@ class Attack:
         return PMF.flatten(dists)
 
     @cached_property
-    def final_damage_dist(self):
-        return self.apply_feel_no_pain(self.total_damage_results.damage_dist).ceiling(self.target.wounds)
+    def final_damage_dist(self) -> PMF:
+        return self.apply_feel_no_pain(self.total_damage_results.damage_dist)
 
     @cached_property
-    def final_mortal_wound_dist(self):
+    def final_mortal_wound_dist(self) -> PMF:
         return self.apply_feel_no_pain(self.total_mortal_wounds)
 
     @cached_property
-    def final_self_wound_dist(self):
+    def final_self_wound_dist(self) -> PMF:
         return self.apply_feel_no_pain(self.total_self_wounds)
 
     @cached_property
-    def final_total_damage_dist(self):
+    def final_total_damage_dist(self) -> PMF:
         return PMF.convolve_many([
             self.final_damage_dist,
             self.final_mortal_wound_dist,
         ])
 
     @cached_property
-    def kills_dist(self):
+    def kills_dist(self) -> PMF:
         total_successful_hits_dist = PMF.convolve_many([
             self.hit_phase_results.successful_hit_dist,
             self.hit_phase_results.extra_automatic_hit_dist,
@@ -181,6 +190,7 @@ class Attack:
         ).multiply_by(
             self.attacks_phase_results.attack_number_dist
         ).failed_armour_save_dist
+
 
         damage_dist = self.apply_feel_no_pain(self.damage_phase_results.damage_dist)
 
